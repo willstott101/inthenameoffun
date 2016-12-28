@@ -8,7 +8,20 @@
   <meta name="description" content="some games and stuff">
   <meta name="author" content="Will Stott">
 
-  <!--<link rel="stylesheet" href="css/styles.css?v=1.0">-->
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.6/semantic.min.css">
+
+  <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.6/semantic.min.js"></script>
+
+  <script type="text/javascript">
+    $(function() {
+
+      $('.game-select.cards .image').dimmer({
+        on: 'hover'
+      });
+
+    });
+  </script>
 
   <!--[if lt IE 9]>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv.js"></script>
@@ -16,6 +29,57 @@
 </head>
 
 <body>
-  <!--<script src="js/scripts.js"></script>-->
+  <div class="ui container">
+    <h1 class="ui teal center aligned icon header">
+      <i class="circular red birthday icon"></i>
+      inthenameoffun
+    </h1>
+  </div>
+
+  <div class="ui game-select centered cards">
+
+    <div class="black card">
+      <a class="dimmable image" href="sierpinski">
+        <div class="ui dimmer">
+          <div class="content">
+            <div class="center">
+              <div class="ui primary button">Play!</div>
+            </div>
+          </div>
+        </div>
+        <img src="static/sad.png">
+      </a>
+      <div class="content">
+        <a class="header" href="sierpinski">Sierpinski</a>
+        <div class="meta">
+          <span class="date">Inspired by <a href="https://github.com/CuteLifeBot/cutelifebot.github.io/tree/master/sierpinski">this game from CuteLifeBot</a>.</span>
+        </div>
+      </div>
+      <div class="extra content">
+          <i class="big game icon" title="Controller support"></i>
+      </div>
+    </div>
+
+    <div class="pink card">
+      <div class="dimmable image">
+        <div class="ui dimmer">
+          <div class="content">
+            <div class="center">
+              :(
+            </div>
+          </div>
+        </div>
+        <img src="static/sad.png">
+      </div>
+      <div class="content">
+        <a class="header">WIP</a>
+        <div class="meta">
+          <span class="date">Coming never.</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
 </body>
 </html>
