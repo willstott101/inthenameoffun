@@ -1,11 +1,10 @@
 var RENDER_SCALE = 1;
 
-var MIN_FRACTAL_SCALE = 16;
+var MAX_FRACTAL_SIZE = 48;
+var INITIAL_SIZE = 200;
 
-var INITIAL_SCALE = 200;
-
-var INITIAL_SCALE_RATE = 0.8;
-var SCALE_ACCELERATION = 0.1;
+var INITIAL_SCALE_RATE = 5;
+var SCALE_ACCELERATION = 2;
 
 var GeomUtils = {
   // Defines some vectors which can be composed to traverse equilateral triangles.
@@ -49,6 +48,15 @@ var GeomUtils = {
     return triangle;
   },
 
+  pathTriangle: function (ctx, position, size) {
+    ctx.beginPath();
+    ctx.moveTo(position.x, position.y);
+    var point = this.downRightEdge.multiply(size).add(position);
+    ctx.lineTo(point.x, point.y);
+    ctx.lineTo(point.x - size, point.y);
+    ctx.closePath();
+  },
+
   splitTriangles: function (triangles, minFractalScale) {
     var didSplit = false;
     console.debug('Running split iteration over', triangles.length, 'items.');
@@ -87,6 +95,16 @@ var GeomUtils = {
 
     triangle.translate(this.topTri.multiply(posScale));
     triangle.scale(0.5);
+  },
+
+  splitTrianglePositions: function (trianglePositions, size) {
+    var downRightEdge = this.downRightEdge.multiply(size);
+    var downLeft = this.downLeft.multiply(size);
+    return trianglePositions.reduce(function (tps, tp)
+    {
+      tps.push(tp, tp.add(downRightEdge), tp.add(downLeft));
+      return tps;
+    }, []);
   }
 };
 
@@ -106,40 +124,83 @@ var main = function () {
   var paper = getPaper();
   paper.setup('game-canvas');
 
-  // Build template triangle on default layer.
-  GeomUtils.getTemplateTriangle();
+  var canvas = paper.view.element;
+  var context = paper.view._context;
 
-  var triangleLayer = new paper.Layer();
-  triangleLayer.activate();
+  var START_TIME = (new Date()).getTime();
+  var LAST_TIME = null;
 
-  var firstTri = GeomUtils.addTriangleTo(triangleLayer);
-  firstTri.position = paper.view.center;
-  firstTri.scale(INITIAL_SCALE);
+  var SIZE = INITIAL_SIZE;
 
-  // GeomUtils.splitTriangles(
-  //       triangleLayer.children,
-  //       MIN_FRACTAL_SCALE);
+  var trianglePositions = [paper.view.center.add(0,- GeomUtils.downRightEdge.y * SIZE / 2)];
+  console.debug('center', paper.view.center.x, paper.view.center.y);
+  console.debug('trianglePosition', trianglePositions[0].x, trianglePositions[0].y);
+
+  console.debug('INITIAL_SIZE', INITIAL_SIZE);
+  console.debug('MAX_FRACTAL_SIZE', MAX_FRACTAL_SIZE);
+
+  while (SIZE > MAX_FRACTAL_SIZE) {
+    console.debug('DOING SPLIT');
+    SIZE /= 2;
+    trianglePositions = GeomUtils.splitTrianglePositions(trianglePositions, SIZE);
+  }
+  console.debug('SIZE', SIZE);
+  console.debug('trianglePositions.length', trianglePositions.length);
+
 
   paper.view.onFrame = function (evt) {
-    var paper = getPaper();
 
-    // triangleLayer.scale(1 + (evt.time * SCALE_ACCELERATION * INITIAL_SCALE_RATE * evt.delta));
-    // console.debug(triangleLayer.scaling.length);
-    triangleLayer.children.forEach(function (triangle) {
-      triangle.scale(1 + (evt.time * SCALE_ACCELERATION * INITIAL_SCALE_RATE * evt.delta), paper.view.center);
+    context.clearRect(0, 0, canvas.width, canvas.height);
+
+    var increase = evt.time * SCALE_ACCELERATION * INITIAL_SCALE_RATE * evt.delta;
+    console.debug('increase in size', increase);
+    if (increase > 0)
+      scale = (increase / SIZE) + 1;
+    else
+      scale = 1;
+    console.debug('scale', scale);
+    SIZE += increase;
+
+    while (SIZE > MAX_FRACTAL_SIZE) {
+      console.debug('DOING SPLIT');
+      SIZE /= 2;
+      trianglePositions = GeomUtils.splitTrianglePositions(trianglePositions, SIZE);
+    }
+
+    var width = canvas.width;
+    var height = canvas.height;
+    var centerOfScaling = new paper.Point(width / 2, height / 2);
+    trianglePositions = trianglePositions.map(function (tp)
+    {
+      return centerOfScaling.add(tp.subtract(centerOfScaling).multiply(scale));
     });
 
-    while(
-      GeomUtils.splitTriangles(
-        triangleLayer.children,
-        MIN_FRACTAL_SCALE)
-    ) {};
+    var halfEdgeSize = SIZE / 2;
+    trianglePositions = trianglePositions.filter(function (tp)
+    {
+      if (
+        tp.y > height ||
+        tp.y < 0 ||
+        tp.x - halfEdgeSize > width ||
+        tp.x + halfEdgeSize < 0) {
+        console.info('Pruning trianlge pos', tp.x, tp.y);
+      }
+      return !(
+        tp.y > height ||
+        tp.y < 0 ||
+        tp.x - halfEdgeSize > width ||
+        tp.x + halfEdgeSize < 0);
+    });
 
-    var bounds = paper.view.bounds;
-    triangleLayer.children.forEach(function (triangle) {
-      triangle.position
-      if (!bounds.intersects(triangle.bounds))
-        triangle.remove();
+    if (trianglePositions.length === 0) {
+      throw 'end';
+    }
+
+    console.info('Drawing', trianglePositions.length, 'triangles of size', SIZE);
+    context.fillStyle = 'black';
+    trianglePositions.forEach(function (tp) {
+      GeomUtils.pathTriangle(context, tp, SIZE);
+      context.fill();
     });
   };
 
