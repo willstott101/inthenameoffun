@@ -3,8 +3,8 @@ var RENDER_SCALE = 1;
 var MAX_FRACTAL_SIZE = 48;
 var INITIAL_SIZE = 200;
 
-var INITIAL_SCALE_RATE = 5;
-var SCALE_ACCELERATION = 2;
+var INITIAL_SCALE_RATE = 40;
+var SCALE_ACCELERATION = 0.1;
 
 var GeomUtils = {
   // Defines some vectors which can be composed to traverse equilateral triangles.
@@ -46,26 +46,25 @@ var main = function () {
   var canvas = paper.view.element;
   var context = paper.view._context;
 
-  var START_TIME = (new Date()).getTime();
-  var LAST_TIME = null;
+  // Game variables
+  var START_TIME, LAST_TIME, SIZE, TRIANGLES, MOUSE_POS;
 
-  var SIZE = INITIAL_SIZE;
+  var newGame = function () {
+    START_TIME = (new Date()).getTime();
+    LAST_TIME = null;
 
-  var trianglePositions = [paper.view.center.add(0,- GeomUtils.triHeight * SIZE / 2)];
-  console.debug('center', paper.view.center.x, paper.view.center.y);
-  console.debug('trianglePosition', trianglePositions[0].x, trianglePositions[0].y);
+    SIZE = INITIAL_SIZE;
 
-  console.debug('INITIAL_SIZE', INITIAL_SIZE);
-  console.debug('MAX_FRACTAL_SIZE', MAX_FRACTAL_SIZE);
+    TRIANGLES = [paper.view.center.add(0,- GeomUtils.triHeight * SIZE / 2)];
 
-  while (SIZE > MAX_FRACTAL_SIZE) {
-    console.debug('DOING SPLIT');
-    SIZE /= 2;
-    trianglePositions = GeomUtils.splitTrianglePositions(trianglePositions, SIZE);
-  }
-  console.debug('SIZE', SIZE);
-  console.debug('trianglePositions.length', trianglePositions.length);
+    MOUSE_POS = new paper.Point(paper.view.center);
+  };
 
+  newGame();
+
+  paper.view.onMouseMove = function (evt) {
+    MOUSE_POS = evt.point;
+  };
 
   paper.view.onFrame = function (evt) {
     var bounds = paper.view.bounds;
@@ -85,30 +84,35 @@ var main = function () {
     while (SIZE > MAX_FRACTAL_SIZE) {
       console.debug('DOING SPLIT');
       SIZE /= 2;
-      trianglePositions = GeomUtils.splitTrianglePositions(trianglePositions, SIZE);
+      TRIANGLES = GeomUtils.splitTrianglePositions(TRIANGLES, SIZE);
     }
 
     // Move the triangles out to adjust for the scaling.
-    var centerOfScaling = center;
-    trianglePositions = trianglePositions.map(function (tp)
+    var centerOfScaling = MOUSE_POS;
+    TRIANGLES = TRIANGLES.map(function (tp)
     {
       return centerOfScaling.add(tp.subtract(centerOfScaling).multiply(scale));
     });
 
     var halfEdgeSize = SIZE / 2;
+    var triHeight = GeomUtils.triHeight * SIZE;
 
-    // QDH: Avoid compound error in trianglePositions by aligning to a grid.
-    var firstTriangleX = trianglePositions[0].x;
-    trianglePositions.forEach(function (tp)
+    // QDH: Avoid compound error in TRIANGLES by aligning to a grid.
+    var firstTriangleX = TRIANGLES[0].x;
+    var firstTriangleY = TRIANGLES[0].y;
+    TRIANGLES.forEach(function (tp)
     {
       var x = tp.x - firstTriangleX;
       x = (Math.round(x / halfEdgeSize) * halfEdgeSize);
       tp.x = x + firstTriangleX;
+      var y = tp.y - firstTriangleY;
+      y = (Math.round(y / triHeight) * triHeight);
+      tp.y = y + firstTriangleY;
     });
 
     // Filter the triangles which are off the screen.
     var triangleHeight = GeomUtils.rightEdge.y * SIZE;
-    trianglePositions = trianglePositions.filter(function (tp)
+    TRIANGLES = TRIANGLES.filter(function (tp)
     {
       return !(
         tp.y > height ||
@@ -117,14 +121,14 @@ var main = function () {
         tp.x + halfEdgeSize < 0);
     });
 
-    if (trianglePositions.length === 0) {
+    if (TRIANGLES.length === 0) {
       throw 'end';
     }
 
-    // console.info('Drawing', trianglePositions.length, 'triangles of size', SIZE);
+    // console.info('Drawing', TRIANGLES.length, 'triangles of size', SIZE);
     // Draw the remaining triangles to the canvas.
     context.fillStyle = 'black';
-    trianglePositions.forEach(function (tp) {
+    TRIANGLES.forEach(function (tp) {
       GeomUtils.pathTriangle(context, tp, SIZE);
       context.fill();
     });
