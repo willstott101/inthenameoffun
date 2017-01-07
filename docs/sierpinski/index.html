@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="styles.css">
 
   <script src="//cdnjs.cloudflare.com/ajax/libs/paper.js/0.10.2/paper-core.min.js"></script>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.4/lodash.min.js"></script>
 
   <script src="game.js"></script>
 </head>
@@ -23,7 +24,7 @@
   <div class="game-container">
     <canvas id="game-canvas" resize="true">Please use chrome / firefox / something.</canvas>
     <div class="score">
-      0 pts
+      <span id="game-score">0</span> pts
     </div>
   </div>
 

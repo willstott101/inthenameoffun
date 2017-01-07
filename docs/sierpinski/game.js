@@ -33,6 +33,11 @@ var GeomUtils = {
 
 GeomUtils.triHeight = GeomUtils.rightEdge.y;
 
+// Thanks http://stackoverflow.com/a/2901298
+function numberWithCommas(x) {
+    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
 var main = function () {
   var _paper = new window.paper.PaperScope();
   var getPaper = function () {
@@ -48,6 +53,10 @@ var main = function () {
 
   // Game variables
   var START_TIME, LAST_TIME, SIZE, TRIANGLES, MOUSE_POS;
+  var scoreEl = document.getElementById('game-score');
+  var updateScore = _.throttle(function (score) {
+    scoreEl.innerHTML = numberWithCommas(Math.round(score));
+  }, 80);
 
   var newGame = function () {
     START_TIME = (new Date()).getTime();
@@ -58,6 +67,8 @@ var main = function () {
     TRIANGLES = [paper.view.center.add(0,- GeomUtils.triHeight * SIZE / 2)];
 
     MOUSE_POS = new paper.Point(paper.view.center);
+
+    scoreEl.innerHTML = 0;
   };
 
   newGame();
@@ -73,6 +84,8 @@ var main = function () {
     var height = bounds.height;
 
     context.clearRect(0, 0, canvas.width, canvas.height);
+
+    updateScore(evt.time * 1000);
 
     var increase = evt.time * SCALE_ACCELERATION * INITIAL_SCALE_RATE * evt.delta;
     if (increase > 0)
