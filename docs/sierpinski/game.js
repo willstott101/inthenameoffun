@@ -8,30 +8,30 @@ var SCALE_ACCELERATION = 2;
 
 var GeomUtils = {
   // Defines some vectors which can be composed to traverse equilateral triangles.
-  downRightEdge: (new paper.Point(1, 0)).rotate(60, [0, 0]),
+  rightEdge: (new paper.Point(1, 0)).rotate(60, [0, 0]),
   downLeft: (new paper.Point(1, 0)).rotate(120, [0, 0]),
 
   pathTriangle: function (ctx, position, size) {
     ctx.beginPath();
     ctx.moveTo(position.x, position.y);
-    var point = this.downRightEdge.multiply(size).add(position);
+    var point = this.rightEdge.multiply(size).add(position);
     ctx.lineTo(point.x, point.y);
     ctx.lineTo(point.x - size, point.y);
     ctx.closePath();
   },
 
   splitTrianglePositions: function (trianglePositions, size) {
-    var downRightEdge = this.downRightEdge.multiply(size);
+    var rightEdge = this.rightEdge.multiply(size);
     var downLeft = this.downLeft.multiply(size);
     return trianglePositions.reduce(function (tps, tp)
     {
-      tps.push(tp, tp.add(downRightEdge), tp.add(downLeft));
+      tps.push(tp, tp.add(rightEdge), tp.add(downLeft));
       return tps;
     }, []);
   }
 };
 
-GeomUtils.triHeight = GeomUtils.downRightEdge.y;
+GeomUtils.triHeight = GeomUtils.rightEdge.y;
 
 var main = function () {
   var _paper = new window.paper.PaperScope();
@@ -68,6 +68,10 @@ var main = function () {
 
 
   paper.view.onFrame = function (evt) {
+    var bounds = paper.view.bounds;
+    var center = paper.view.center;
+    var width = bounds.width;
+    var height = bounds.height;
 
     context.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -85,9 +89,7 @@ var main = function () {
     }
 
     // Move the triangles out to adjust for the scaling.
-    var width = canvas.width;
-    var height = canvas.height;
-    var centerOfScaling = new paper.Point(width / 2, height / 2);
+    var centerOfScaling = center;
     trianglePositions = trianglePositions.map(function (tp)
     {
       return centerOfScaling.add(tp.subtract(centerOfScaling).multiply(scale));
@@ -105,7 +107,7 @@ var main = function () {
     });
 
     // Filter the triangles which are off the screen.
-    var triangleHeight = GeomUtils.downRightEdge.y * SIZE;
+    var triangleHeight = GeomUtils.rightEdge.y * SIZE;
     trianglePositions = trianglePositions.filter(function (tp)
     {
       return !(
