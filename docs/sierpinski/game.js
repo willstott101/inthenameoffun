@@ -3,8 +3,8 @@ var RENDER_SCALE = 1;
 var MAX_FRACTAL_SIZE = 48;
 var INITIAL_SIZE = 200;
 
-var INITIAL_SCALE_RATE = 40;
-var SCALE_ACCELERATION = 0.1;
+var INITIAL_SCALE_RATE = 15;
+var SCALE_ACCELERATION = 1.8;
 
 var GeomUtils = {
   // Defines some vectors which can be composed to traverse equilateral triangles.
@@ -52,32 +52,57 @@ var main = function () {
   var context = paper.view._context;
 
   // Game variables
-  var START_TIME, LAST_TIME, SIZE, TRIANGLES, MOUSE_POS;
+  var START_TIME, SIZE, TRIANGLES, MOUSE_POS, FINISHED, SCORE;
+
   var scoreEl = document.getElementById('game-score');
-  var updateScore = _.throttle(function (score) {
-    scoreEl.innerHTML = numberWithCommas(Math.round(score));
+  var updateScore = _.throttle(function () {
+    scoreEl.innerHTML = numberWithCommas(Math.round(SCORE));
   }, 80);
+  var hiscoreEl = document.getElementById('game-hiscore');
+  var setHighScore = function () {
+    hiscoreEl.innerHTML = numberWithCommas(Math.round(SCORE));
+    localStorage.highscore_v1 = SCORE;
+  };
+  if (localStorage.highscore_v1)
+    hiscoreEl.innerHTML = numberWithCommas(parseInt(localStorage.highscore_v1));
+
+  var endmsgEl = document.getElementById('game-msg');
+  document.addEventListener('mousedown', function () {
+    if (FINISHED)
+      newGame();
+  });
 
   var newGame = function () {
-    START_TIME = (new Date()).getTime();
-    LAST_TIME = null;
+    endmsgEl.classList.add('hidden');
+
+    START_TIME = (new Date()).getTime() / 1000;
+    FINISHED = false;
 
     SIZE = INITIAL_SIZE;
 
-    TRIANGLES = [paper.view.center.add(0,- GeomUtils.triHeight * SIZE / 2)];
+    TRIANGLES = [paper.view.center.add(0,(- GeomUtils.triHeight * SIZE / 2) + 1)];
 
     MOUSE_POS = new paper.Point(paper.view.center);
 
     scoreEl.innerHTML = 0;
   };
 
-  newGame();
+  var endGame = function () {
+    FINISHED = true;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    endmsgEl.classList.remove('hidden');
+    if (!localStorage.highscore_v1 || parseInt(localStorage.highscore_v1) < SCORE)
+      setHighScore();
+  };
 
   paper.view.onMouseMove = function (evt) {
     MOUSE_POS = evt.point;
   };
 
   paper.view.onFrame = function (evt) {
+    if (FINISHED)
+      return;
+
     var bounds = paper.view.bounds;
     var center = paper.view.center;
     var width = bounds.width;
@@ -85,9 +110,12 @@ var main = function () {
 
     context.clearRect(0, 0, canvas.width, canvas.height);
 
-    updateScore(evt.time * 1000);
+    var time = ((new Date()).getTime() / 1000) - START_TIME;
 
-    var increase = evt.time * SCALE_ACCELERATION * INITIAL_SCALE_RATE * evt.delta;
+    SCORE = time * 1000;
+    updateScore();
+
+    var increase = (INITIAL_SCALE_RATE + (time * SCALE_ACCELERATION)) * evt.delta;
     if (increase > 0)
       scale = (increase / SIZE) + 1;
     else
@@ -135,7 +163,8 @@ var main = function () {
     });
 
     if (TRIANGLES.length === 0) {
-      throw 'end';
+      endGame();
+      return;
     }
 
     // console.info('Drawing', TRIANGLES.length, 'triangles of size', SIZE);
@@ -146,6 +175,8 @@ var main = function () {
       context.fill();
     });
   };
+
+  newGame();
 
 };
 
