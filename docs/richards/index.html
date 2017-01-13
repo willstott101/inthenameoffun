@@ -16,13 +16,102 @@
 
   <script src="//cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.4/lodash.min.js"></script>
 
+  <script src="//cdnjs.cloudflare.com/ajax/libs/tinycolor/1.4.1/tinycolor.min.js"></script>
   <script src="vis.js"></script>
 </head>
 
 <body>
-  <div class="vis-container">
+  <div class="canvas-container">
+    <canvas id="edit-canvas" width="251" height="251">Please use chrome / firefox / something.</canvas>
+  </div>
+  <div class="color-map">
+    <ul class="color-set FFT freq1">
+        <li class="color-block pow1"></li>
+        <li class="color-block pow2"></li>
+        <li class="color-block pow3"></li>
+        <li class="color-block pow4"></li>
+        <li class="color-block pow5"></li>
+        <li class="color-block pow6"></li>
+        <li class="color-block pow7"></li>
+        <li class="color-block pow8"></li>
+        <li class="color-block pow9"></li>
+        <li class="color-block pow10"></li>
+        <li class="color-block pow11"></li>
+        <li class="color-block pow12"></li>
+    </ul>
+    <ul class="color-set FFT freq2">
+        <li class="color-block pow1"></li>
+        <li class="color-block pow2"></li>
+        <li class="color-block pow3"></li>
+        <li class="color-block pow4"></li>
+        <li class="color-block pow5"></li>
+        <li class="color-block pow6"></li>
+        <li class="color-block pow7"></li>
+        <li class="color-block pow8"></li>
+        <li class="color-block pow9"></li>
+        <li class="color-block pow10"></li>
+        <li class="color-block pow11"></li>
+        <li class="color-block pow12"></li>
+    </ul>
+    <ul class="color-set FFT freq3">
+        <li class="color-block pow1"></li>
+        <li class="color-block pow2"></li>
+        <li class="color-block pow3"></li>
+        <li class="color-block pow4"></li>
+        <li class="color-block pow5"></li>
+        <li class="color-block pow6"></li>
+        <li class="color-block pow7"></li>
+        <li class="color-block pow8"></li>
+        <li class="color-block pow9"></li>
+        <li class="color-block pow10"></li>
+        <li class="color-block pow11"></li>
+        <li class="color-block pow12"></li>
+    </ul>
+    <ul class="color-set FFT freq4">
+        <li class="color-block pow1"></li>
+        <li class="color-block pow2"></li>
+        <li class="color-block pow3"></li>
+        <li class="color-block pow4"></li>
+        <li class="color-block pow5"></li>
+        <li class="color-block pow6"></li>
+        <li class="color-block pow7"></li>
+        <li class="color-block pow8"></li>
+        <li class="color-block pow9"></li>
+        <li class="color-block pow10"></li>
+        <li class="color-block pow11"></li>
+        <li class="color-block pow12"></li>
+    </ul>
+    <ul class="color-set vol min1">
+        <li class="color-block pow1"></li>
+        <li class="color-block pow2"></li>
+        <li class="color-block pow3"></li>
+        <li class="color-block pow4"></li>
+        <li class="color-block pow5"></li>
+        <li class="color-block pow6"></li>
+        <li class="color-block pow7"></li>
+        <li class="color-block pow8"></li>
+        <li class="color-block pow9"></li>
+        <li class="color-block pow10"></li>
+        <li class="color-block pow11"></li>
+        <li class="color-block pow12"></li>
+    </ul>
+    <ul class="color-set vol max1">
+        <li class="color-block pow1"></li>
+        <li class="color-block pow2"></li>
+        <li class="color-block pow3"></li>
+        <li class="color-block pow4"></li>
+        <li class="color-block pow5"></li>
+        <li class="color-block pow6"></li>
+        <li class="color-block pow7"></li>
+        <li class="color-block pow8"></li>
+        <li class="color-block pow9"></li>
+        <li class="color-block pow10"></li>
+        <li class="color-block pow11"></li>
+        <li class="color-block pow12"></li>
+    </ul>
+  </div>
+  <div class="canvas-container">
     <canvas id="vis-canvas" width="251" height="251">Please use chrome / firefox / something.</canvas>
   </div>
-
 </body>
 </html>

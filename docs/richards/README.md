@@ -1,6 +1,6 @@
 # Spectrum Reference
 
-The colour-space used for masking is defined in HSL.
+The colour-space used for masking is defined in MS Paint HSL (all HSL 0-240 inclusive).
 
 ## Hue: Will generally match a type of signal i.e. pitch, volume
 
@@ -24,10 +24,6 @@ Triggered when the volume is below a certain level.
 
 It's recommended that you keep saturation at 240 for all colours.
 
-## Luminosity: Will generally match a strength of signal.
+## Luminosity: Matches against the strength of a signal.
 
-#### Volume: 40 - 200 (Where 40 is triggered by quieter signals)
-#### Pitch: 40 - 200 (Where 40 is triggered by deeper signals)
-
-
-Numbers from HSL in MS Paint
+#### Volume/Pitch: 40 - 200 (Where 40 is triggered by lower signals)

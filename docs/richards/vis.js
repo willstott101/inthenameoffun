@@ -12,7 +12,7 @@ var superKewl = (function () {
       } else {
         var d = max - min;
         s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-
+ 
         switch (max) {
           case r: h = (g - b) / d + (g < b ? 6 : 0); break;
           case g: h = (b - r) / d + 2; break;
@@ -35,6 +35,7 @@ var superKewl = (function () {
         this.hsl = rgbToHsl(this.rgba[0], this.rgba[1], this.rgba[2]);
         // Microsoft Paint uses 0-240 for all of HSL.
         this.hslMSP = [Math.round(this.hsl[0] * 240), Math.round(this.hsl[1] * 240), Math.round(this.hsl[2] * 240)];
+        console.debug('hsl conversion', this.color, '=>', this.hslMSP[0], this.hslMSP[1], this.hslMSP[2]);
         this.pixels = new Set();
         this.piccy = piccy;
     };
@@ -44,6 +45,13 @@ var superKewl = (function () {
                 var x = pixel % this.piccy.width;
                 var y = (pixel - x) / this.piccy.width;
                 ctx.fillRect(x, y, 1, 1);
+            }, this);
+        },
+        clearFromCtx: function (ctx) {
+            this.pixels.forEach(function (pixel) {
+                var x = pixel % this.piccy.width;
+                var y = (pixel - x) / this.piccy.width;
+                ctx.clearRect(x, y, 1, 1);
             }, this);
         }
     };
@@ -104,7 +112,7 @@ var superKewl = (function () {
 
     var Visualizer = function (canvas) {
         if (typeof canvas === 'string')
-            this.canvas = document.getElementById('vis-canvas');
+            this.canvas = document.getElementById(canvas);
         else
             this.canvas = canvas;
         this.ctx = this.canvas.getContext('2d');
@@ -112,6 +120,14 @@ var superKewl = (function () {
             main: new Piccy(),
             map: new Piccy()
         };
+        this.running = false;
+        this.boundFrame = this.frame.bind(this);
+
+        this.audioCtx = new AudioContext();
+        this.analyser = this.audioCtx.createAnalyser();
+        this.analyser.fftSize = 32;
+        var bufferLength = this.analyser.frequencyBinCount;
+        this.dataArray = new Uint8Array(bufferLength);
     };
     Visualizer.prototype = {
         maybeGotImageData: function () {
@@ -122,7 +138,6 @@ var superKewl = (function () {
             });
             if (!notReady) this.initialize();
         },
-
         _imageLoaded: function (name) {
             var img = this._images[name];
             img._loaded();
@@ -144,12 +159,88 @@ var superKewl = (function () {
             }
         },
         initialize: function () {
-            this._images.map.buildRegions();
-            this._images.map.drawDebugRegions(this.ctx);
-            // _.forEach(this._images, function(value, key) {
-                
-            // });
+            var pic = this._images.map; 
+            pic.buildRegions();
+            pic.drawDebugRegions(this.ctx);
+            this.start();
         },
+        start: function () {
+            this.running = true;
+            this.frame();
+        },
+        stop: function () {
+            this.running = false;
+        },
+        frame: function () {
+            if (!this.running)
+                return;
+
+            this.analyser.getByteTimeDomainData(this.dataArray);
+            this.dataArrayShort = [];
+            var sum = 0;
+            var volume = 0;
+            for (var i = 0; i < this.dataArray.length; i++) {
+                sum += this.dataArray[i];
+                if (i % 4 === 3) {
+                    this.dataArrayShort.push(sum / 4);
+                    volume += sum;
+                    sum = 0;
+                }
+            }
+
+            volume /= 16;
+
+            console.debug(_.padEnd('=', volume, '-'));
+
+            this._images.map.regions.forEach(function (r) {
+                var draw;
+                if (r.hslMSP[0] === 127) {
+                    var thresh = ((volume / 255) * (200 - 40)) + 40;
+                    console.debug(thresh, r.hslMSP[2]);
+                    if (r.hslMSP[2] <= thresh)
+                        draw = true;
+                }
+                // if (draw) {
+                //     this.ctx.fillStyle = r.color;
+                //     r.fillIntoCtx(this.ctx);
+                // } else
+                //     r.clearFromCtx(this.ctx);
+            }, this);
+
+            window.requestAnimationFrame(this.boundFrame);
+        },
+        setSource: function (source) {
+            this.analyser.disconnect();
+            this.source = this.audioCtx.createMediaElementSource(source);
+            this.source.connect(this.analyser);
+            this.analyser.connect(this.audioCtx.destination);
+        }
+    };
+
+    var Editor = function (canvas) {
+        if (typeof canvas === 'string')
+            this.canvas = document.getElementById(canvas);
+        else
+            this.canvas = canvas;
+        this.ctx = this.canvas.getContext('2d');
+    };
+    Editor.prototype = {
+        setImage: function (urlOrElement) {
+            var el = urlOrElement;
+            if (typeof el === 'string') {
+                el = new Image();
+                el.src = urlOrElement;
+            }
+            var imageLoaded = (function (el) {
+                this.canvas.width = el.width;
+                this.canvas.height = el.height;
+                this.ctx.drawImage(el, 0, 0);
+            }).bind(this);
+            if (el.complete)
+                imageLoaded();
+            else
+                el.addEventListener('load', imageLoaded);
+        }
     };
 
     return {
@@ -162,6 +253,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     var vis = new superKewl.Visualizer('vis-canvas');
     vis.addImage('main', '/static/richards/src_mandala.png');
-    vis.addImage('map', '/static/richards/map_mandala.png');
+    // vis.addImage('map', '/static/richards/map_mandala.png');
+    vis.addImage('map', '/static/richards/map_test.png');
 
+    var audioEl = document.createElement('audio');
+    // audioEl.autoplay = true;
+    // audioEl.crossOrigin = "anonymous";
+    audioEl.src = "/static/richards/song.mp3";
+
+    vis.setSource(audioEl);
 }, false);
