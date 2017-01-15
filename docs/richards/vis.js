@@ -190,7 +190,7 @@ var superKewl = (function () {
 
             volume /= 16;
 
-            console.debug(_.padEnd('=', volume, '-'));
+            // console.debug(_.padEnd('=', volume, '-'));
 
             this._images.map.regions.forEach(function (r) {
                 var draw;
@@ -217,21 +217,92 @@ var superKewl = (function () {
         }
     };
 
-    var Editor = function (canvas) {
-        if (typeof canvas === 'string')
-            this.canvas = document.getElementById(canvas);
+    var Editor = function (rootEl) {
+        if (typeof rootEl === 'string')
+            this.rootEl = document.getElementById(rootEl);
         else
-            this.canvas = canvas;
+            this.rootEl = rootEl;
+
+        this.canvas = this.rootEl.querySelector('canvas');
+        this.canvas.addEventListener('click', this._onCanvasClick.bind(this));
         this.ctx = this.canvas.getContext('2d');
+
+        this.initiateColorMap();
+        this.initiateZoomer();
     };
     Editor.prototype = {
+        initiateColorMap: function () {
+            var editor = this;
+            var colorEls = this.rootEl.querySelectorAll('.color-set > .color-block');
+
+            var onclickFn = function (e) {
+                if (e.button !== 0)
+                    return;
+                this.classList.add('active');
+                colorEls.forEach(function (x) {
+                    if (x !== this)
+                        x.classList.remove('active')
+                }, this);
+                editor.color = this.style.backgroundColor;
+            };
+
+            colorEls.forEach(function (x) {
+                x.addEventListener('click', onclickFn);
+            });
+
+            var current = this.rootEl.querySelector('.color-set > .color-block.active');
+            editor.color = current ? current.style.backgroundColor : null;
+        },
+        initiateZoomer: function () {
+            var editor = this;
+            var zoomIn = this.rootEl.querySelector('.zoom-controls .zoom-in');
+            var zoomOut = this.rootEl.querySelector('.zoom-controls .zoom-out');
+            var zoomStat = this.rootEl.querySelector('.zoom-controls .zoom-stat');
+            var availableScales = [
+                0.25, 0.5, 1, 2, 3, 4, 5, 6, 8, 10, 12
+            ];
+            this._scaleIdx = availableScales.indexOf(1);
+            var zoomUpdate = function () {
+                var scale = availableScales[editor._scaleIdx];
+                editor.canvas.style.width = (editor.canvas.width * scale) + 'px';
+                zoomStat.innerHTML = scale * 100 + '%';
+                if (editor._scaleIdx === availableScales - 1)
+                    zoomIn.setAttribute('disabled', '');
+                if (zoomOut.hasAttribute('disabled'))
+                    zoomOut.removeAttribute('disabled');
+                if (editor._scaleIdx === 0)
+                    zoomOut.setAttribute('disabled', '');
+                if (zoomIn.hasAttribute('disabled'))
+                    zoomIn.removeAttribute('disabled');
+            };
+            zoomIn.addEventListener('click', function () {
+                if (editor._scaleIdx < availableScales.length - 1) {
+                    editor._scaleIdx++;
+                    zoomUpdate();
+                }
+            });
+            zoomOut.addEventListener('click', function () {
+                if (editor._scaleIdx > 0) {
+                    editor._scaleIdx--;
+                    zoomUpdate();
+                }
+            });
+        },
+        initiateHistory: function () {
+            var undo = this.rootEl.querySelector('.history-controls .history-undo');
+            var redo = this.rootEl.querySelector('.history-controls .history-redo');
+            this._undoStack = [];
+            this._redoStack = [];
+            this._undoMax = 10;
+            // TODO: Finish this next, then do the visualizer.
+        },
         setImage: function (urlOrElement) {
             var el = urlOrElement;
             if (typeof el === 'string') {
                 el = new Image();
                 el.src = urlOrElement;
             }
-            var imageLoaded = (function (el) {
+            var imageLoaded = (function () {
                 this.canvas.width = el.width;
                 this.canvas.height = el.height;
                 this.ctx.drawImage(el, 0, 0);
@@ -240,26 +311,56 @@ var superKewl = (function () {
                 imageLoaded();
             else
                 el.addEventListener('load', imageLoaded);
+        },
+        _onCanvasClick: function (e) {
+            var x = e.offsetX;
+            var y = e.offsetY;
+            var scale = this.getScale();
+            x /= scale;
+            y /= scale;
+            var tool = this.getTool();
+            if (tool == 'bucket')
+                this.bucket(x, y);
+            else
+                console.error('Unrecognised tool!', tool);
+        },
+        getTool: function () {
+            // Only got one tool atm...
+            return 'bucket';
+        },
+        bucket: function (x, y) {
+            if (this.color) {
+                this.ctx.fillStyle = this.color;
+                this.ctx.fillFlood(x, y);
+            }
+        },
+        getScale: function () {
+            var el = this.canvas;
+            return el.offsetWidth / el.width;
         }
     };
 
     return {
-        Visualizer: Visualizer
+        Visualizer: Visualizer,
+        Editor: Editor
     };
 })();
 
 
 document.addEventListener('DOMContentLoaded', function () {
 
-    var vis = new superKewl.Visualizer('vis-canvas');
-    vis.addImage('main', '/static/richards/src_mandala.png');
-    // vis.addImage('map', '/static/richards/map_mandala.png');
-    vis.addImage('map', '/static/richards/map_test.png');
+    // var vis = new superKewl.Visualizer('vis-canvas');
+    // vis.addImage('main', '/static/richards/src_mandala.png');
+    // // vis.addImage('map', '/static/richards/map_mandala.png');
+    // vis.addImage('map', '/static/richards/map_test.png');
 
-    var audioEl = document.createElement('audio');
-    // audioEl.autoplay = true;
-    // audioEl.crossOrigin = "anonymous";
-    audioEl.src = "/static/richards/song.mp3";
+    // var audioEl = document.createElement('audio');
+    // // audioEl.autoplay = true;
+    // // audioEl.crossOrigin = "anonymous";
+    // audioEl.src = "/static/richards/song.mp3";
 
-    vis.setSource(audioEl);
+    // vis.setSource(audioEl);
+
+    var editor = new superKewl.Editor('editor');
+    editor.setImage('/static/richards/map_test.png');
 }, false);
