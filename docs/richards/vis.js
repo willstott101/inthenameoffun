@@ -1,41 +1,17 @@
 
 var superKewl = (function () {
-
-    function rgbToHsl(r, g, b) {
-      r /= 255, g /= 255, b /= 255;
-
-      var max = Math.max(r, g, b), min = Math.min(r, g, b);
-      var h, s, l = (max + min) / 2;
-
-      if (max == min) {
-        h = s = 0; // achromatic
-      } else {
-        var d = max - min;
-        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
- 
-        switch (max) {
-          case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-          case g: h = (b - r) / d + 2; break;
-          case b: h = (r - g) / d + 4; break;
-        }
-
-        h /= 6;
-      }
-
-      return [ h, s, l ];
-    }
-
     function rgbaToCss(rgba) {
-      return 'rgba(' + rgba[0] + ',' + rgba[1] + ',' + rgba[2] + ',' + rgba[3] + ')';
+      return tinycolor({r: rgba[0], g: rgba[1], b: rgba[2], a: rgba[3]}).toRgbString()
     }
 
     var Region = function (rgba, piccy) {
+
         this.rgba = rgba;
-        this.color = rgbaToCss(this.rgba);
-        this.hsl = rgbToHsl(this.rgba[0], this.rgba[1], this.rgba[2]);
-        // Microsoft Paint uses 0-240 for all of HSL.
-        this.hslMSP = [Math.round(this.hsl[0] * 240), Math.round(this.hsl[1] * 240), Math.round(this.hsl[2] * 240)];
-        console.debug('hsl conversion', this.color, '=>', this.hslMSP[0], this.hslMSP[1], this.hslMSP[2]);
+        this.tinycolor = tinycolor({r: rgba[0], g: rgba[1], b: rgba[2], a: rgba[3]});
+        this.color = this.tinycolor.toRgbString();
+        this.hsl = this.tinycolor.toHsl();
+        this.hsl.h = Math.round(this.hsl.h);
+
         this.pixels = new Set();
         this.piccy = piccy;
     };
@@ -49,9 +25,8 @@ var superKewl = (function () {
         },
         clearFromCtx: function (ctx) {
             this.pixels.forEach(function (pixel) {
-                var x = pixel % this.piccy.width;
-                var y = (pixel - x) / this.piccy.width;
-                ctx.clearRect(x, y, 1, 1);
+                var xy = this.piccy.idxToCoord(pixel);
+                ctx.clearRect(xy.x, xy.y, 1, 1);
             }, this);
         }
     };
@@ -91,21 +66,30 @@ var superKewl = (function () {
                     continue;
 
                 var rgbaStr = rgbaToCss(rgba);
-                if (!(rgbaStr in this.regionsForColor))
-                    this.regions.push(this.regionsForColor[rgbaStr] = new Region(rgba, this));
+                var region = this.regionsForColor[rgbaStr];
 
-                this.regionsForColor[rgbaStr].pixels.add(p);
+                if (region === undefined)
+                    this.regions.push(region = this.regionsForColor[rgbaStr] = new Region(rgba, this));
+
+                region.pixels.add(p);
             }
 
+            this.regions = _.sortBy(this.regions, 'hslStr');
+            console.info(_.map(this.regions, 'hslStr').join('\n'));
             console.info('BUILT', this.regions.length, 'REGIONS');
             console.info(this.regionsForColor);
+        },
+        idxToCoord: function (pixel) {
+            var x = pixel % this.width;
+            return {
+                x: x,
+                y: (pixel - x) / this.width
+            };
         },
         drawDebugRegions: function (ctx) {
             this.regions.forEach(function (r) {
                 ctx.fillStyle = r.color;
                 r.fillIntoCtx(ctx);
-                console.debug('filled', r.pixels.size, r.hslMSP);
-                // debugger;
             }, this);
         }
     };
@@ -125,7 +109,7 @@ var superKewl = (function () {
 
         this.audioCtx = new AudioContext();
         this.analyser = this.audioCtx.createAnalyser();
-        this.analyser.fftSize = 32;
+        this.analyser.fftSize = 128;
         var bufferLength = this.analyser.frequencyBinCount;
         this.dataArray = new Uint8Array(bufferLength);
     };
@@ -176,35 +160,45 @@ var superKewl = (function () {
                 return;
 
             this.analyser.getByteTimeDomainData(this.dataArray);
-            this.dataArrayShort = [];
-            var sum = 0;
-            var volume = 0;
+            var freqBins = [], binWidth = this.dataArray.length / 4;
+            var sum = 0, volume = 0;
             for (var i = 0; i < this.dataArray.length; i++) {
                 sum += this.dataArray[i];
-                if (i % 4 === 3) {
-                    this.dataArrayShort.push(sum / 4);
+                if (i % binWidth === 3) {
+                    sum /= binWidth;
+                    freqBins.push(sum);
                     volume += sum;
                     sum = 0;
                 }
             }
+            volume /= 4;
 
-            volume /= 16;
+            // console.debug(volume.toFixed(2), _.padEnd('=', volume, '-'));
 
-            // console.debug(_.padEnd('=', volume, '-'));
+            console.debug( _.pad(volume.toFixed(2), 6), _.pad(freqBins[0].toFixed(2), 6), _.pad(freqBins[1].toFixed(2), 6), _.pad(freqBins[2].toFixed(2), 6), _.pad(freqBins[3].toFixed(2), 6));
+            // console.debug(volume);
+
+            var volumeStat = volume / 255;
 
             this._images.map.regions.forEach(function (r) {
                 var draw;
-                if (r.hslMSP[0] === 127) {
-                    var thresh = ((volume / 255) * (200 - 40)) + 40;
-                    console.debug(thresh, r.hslMSP[2]);
-                    if (r.hslMSP[2] <= thresh)
-                        draw = true;
-                }
-                // if (draw) {
-                //     this.ctx.fillStyle = r.color;
-                //     r.fillIntoCtx(this.ctx);
-                // } else
-                //     r.clearFromCtx(this.ctx);
+                if (r.hsl.h === 190)
+                    draw = r.hsl.l <= volumeStat;
+                else if (r.hsl.h === 240)
+                    draw = r.hsl.l >= volumeStat;
+                else if (r.hsl.h === 0)
+                    draw = r.hsl.l * 255 <= freqBins[0];
+                else if (r.hsl.h === 25)
+                    draw = r.hsl.l * 255 <= freqBins[1];
+                else if (r.hsl.h === 50)
+                    draw = r.hsl.l * 255 <= freqBins[2];
+                else if (r.hsl.h === 80)
+                    draw = r.hsl.l * 255 <= freqBins[3];
+                if (draw) {
+                    this.ctx.fillStyle = r.color;
+                    r.fillIntoCtx(this.ctx);
+                } else
+                    r.clearFromCtx(this.ctx);
             }, this);
 
             window.requestAnimationFrame(this.boundFrame);
@@ -243,7 +237,8 @@ var superKewl = (function () {
                     if (x !== this)
                         x.classList.remove('active')
                 }, this);
-                editor.color = this.style.backgroundColor;
+                editor.color = tinycolor(this.getAttribute('gd-hsl')).toRgbString();
+                console.debug('Setting canvas color to', editor.color, 'from', this.getAttribute('gd-hsl'));
             };
 
             colorEls.forEach(function (x) {
@@ -349,18 +344,19 @@ var superKewl = (function () {
 
 document.addEventListener('DOMContentLoaded', function () {
 
-    // var vis = new superKewl.Visualizer('vis-canvas');
+    var vis = new superKewl.Visualizer('vis-canvas');
     // vis.addImage('main', '/static/richards/src_mandala.png');
-    // // vis.addImage('map', '/static/richards/map_mandala.png');
-    // vis.addImage('map', '/static/richards/map_test.png');
+    // vis.addImage('map', '/static/richards/map_mandala.png');
+    vis.addImage('map', '/static/richards/map_demo.png');
+    vis.addImage('main', '/static/richards/map_demo.png');
 
-    // var audioEl = document.createElement('audio');
-    // // audioEl.autoplay = true;
-    // // audioEl.crossOrigin = "anonymous";
-    // audioEl.src = "/static/richards/song.mp3";
+    var audioEl = document.createElement('audio');
+    audioEl.autoplay = true;
+    // audioEl.crossOrigin = "anonymous";
+    audioEl.src = "/static/richards/song.mp3";
 
-    // vis.setSource(audioEl);
+    vis.setSource(audioEl);
 
     var editor = new superKewl.Editor('editor');
-    editor.setImage('/static/richards/map_test.png');
+    editor.setImage('/static/richards/map_demo.png');
 }, false);
