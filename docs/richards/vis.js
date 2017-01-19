@@ -223,6 +223,7 @@ var superKewl = (function () {
 
         this.initiateColorMap();
         this.initiateZoomer();
+        this.initiateHistory();
     };
     Editor.prototype = {
         initiateColorMap: function () {
@@ -284,12 +285,44 @@ var superKewl = (function () {
             });
         },
         initiateHistory: function () {
+            var UNDO_MAX = 20;
+            var undoStack = [];
+            var redoStack = [];
+            var getImageData = (function () {
+                return this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+            }).bind(this);
+            var setImageData = (function (imgData) {
+                this.ctx.putImageData(imgData, 0, 0);
+            }).bind(this);
             var undo = this.rootEl.querySelector('.history-controls .history-undo');
             var redo = this.rootEl.querySelector('.history-controls .history-redo');
-            this._undoStack = [];
-            this._redoStack = [];
-            this._undoMax = 10;
-            // TODO: Finish this next, then do the visualizer.
+            function _updateHistoryBtns() {
+                if (undoStack.length > 0)
+                    undo.removeAttribute('disabled');
+                else
+                    undo.setAttribute('disabled', '');
+                if (redoStack.length > 0)
+                    redo.removeAttribute('disabled');
+                else
+                    redo.setAttribute('disabled', '');
+            }
+            undo.addEventListener('click', function () {
+                redoStack.push(getImageData());
+                setImageData(undoStack.pop());
+                _updateHistoryBtns();
+            });
+            redo.addEventListener('click', function () {
+                undoStack.push(getImageData());
+                setImageData(redoStack.pop());
+                _updateHistoryBtns();
+            });
+            this.saveHistoryStep = function () {
+                undoStack.push(getImageData());
+                redoStack = [];
+                while (undoStack.length > UNDO_MAX)
+                    undoStack.shift();
+                _updateHistoryBtns();
+            };
         },
         setImage: function (urlOrElement) {
             var el = urlOrElement;
@@ -324,7 +357,10 @@ var superKewl = (function () {
             return 'bucket';
         },
         bucket: function (x, y) {
-            if (this.color) {
+            // TODO: Only do bucket fill if it's going to make any difference.
+                // N.B. MSPaint doesn't do that but I think it's worthwhile.
+            if (this.color /* && this.color different to pixel's */) {
+                this.saveHistoryStep();
                 this.ctx.fillStyle = this.color;
                 this.ctx.fillFlood(x, y);
             }
@@ -351,7 +387,7 @@ document.addEventListener('DOMContentLoaded', function () {
     vis.addImage('main', '/static/richards/map_demo.png');
 
     var audioEl = document.createElement('audio');
-    audioEl.autoplay = true;
+    // audioEl.autoplay = true;
     // audioEl.crossOrigin = "anonymous";
     audioEl.src = "/static/richards/song.mp3";
 
