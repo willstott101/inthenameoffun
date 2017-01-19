@@ -381,8 +381,8 @@ var superKewl = (function () {
 document.addEventListener('DOMContentLoaded', function () {
 
     var vis = new superKewl.Visualizer('vis-canvas');
-    // vis.addImage('main', '/static/richards/src_mandala.png');
     // vis.addImage('map', '/static/richards/map_mandala.png');
+    // vis.addImage('main', '/static/richards/src_mandala.png');
     vis.addImage('map', '/static/richards/map_demo.png');
     vis.addImage('main', '/static/richards/map_demo.png');
 
@@ -394,5 +394,6 @@ document.addEventListener('DOMContentLoaded', function () {
     vis.setSource(audioEl);
 
     var editor = new superKewl.Editor('editor');
+    // editor.setImage('/static/richards/map_mandala.png');
     editor.setImage('/static/richards/map_demo.png');
 }, false);

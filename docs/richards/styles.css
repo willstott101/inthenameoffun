@@ -60,6 +60,15 @@ canvas {
     transition: box-shadow 0.3s;
 }
 
+.color-map > .color-set > .color-block:nth-child(3n) {
+    margin-bottom: 3px;
+}
+
+.color-map > .color-set > .color-block:nth-child(6n) {
+    margin-bottom: 4px;
+}
+
+
 .color-map > .color-set > .color-block.lowcontrast {
     box-shadow: inset 0 0 0px 1px grey;
 }
