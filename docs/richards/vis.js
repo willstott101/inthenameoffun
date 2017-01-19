@@ -94,6 +94,45 @@ var superKewl = (function () {
         }
     };
 
+    var Numberwang = function (name, options) {
+        this.name = name;
+        this.logEvery = options.logEvery;
+        this.smoothing = options.smoothing;
+        this.initialized = false;
+    };
+    Numberwang.prototype = {
+        next: function (val) {
+            if (!this.initialized) {
+                this.min = this.max = this.last = this.sum = val;
+                this.count = 1;
+                this.initialized = true;
+            } else {
+                if (val < this.min)
+                    this.min = val;
+                if (val > this.max)
+                    this.max = val;
+                // TODO: Optionally apply a LPF.
+                this.sum += val;
+                this.last = val;
+                this.count += 1;
+            }
+            if (this.logEvery && !(this.count % this.logEvery))
+                console.debug(
+                    'NUM', this.name,
+                    this.min.toFixed(2), '<', this.max.toFixed(2),
+                    ' Avg:', this.mean().toFixed(2), ' Now:', val.toFixed(2));
+            return val;
+            // NUM vol 49.81 < 148.91  Avg: 103.85  Now: 93.55
+            // NUM fq0 13.31 < 49.69  Avg: 31.83  Now: 29.75
+            // NUM fq1 56.31 < 193.31  Avg: 127.57  Now: 115.88
+            // NUM fq2 59.69 < 183.75  Avg: 127.87  Now: 112.94
+            // NUM fq3 68.06 < 181.81  Avg: 128.11  Now: 115.63
+        },
+        mean: function () {
+            return this.initialized ? this.sum / this.count : 0;
+        }
+    };
+
     var Visualizer = function (canvas) {
         if (typeof canvas === 'string')
             this.canvas = document.getElementById(canvas);
@@ -109,9 +148,15 @@ var superKewl = (function () {
 
         this.audioCtx = new AudioContext();
         this.analyser = this.audioCtx.createAnalyser();
-        this.analyser.fftSize = 128;
+        this.analyser.fftSize = 64;
         var bufferLength = this.analyser.frequencyBinCount;
         this.dataArray = new Uint8Array(bufferLength);
+
+        this.n_vol = new Numberwang('vol', { logEvery: 50 });
+        this.n_fq0 = new Numberwang('fq0', { logEvery: 50 });
+        this.n_fq1 = new Numberwang('fq1', { logEvery: 50 });
+        this.n_fq2 = new Numberwang('fq2', { logEvery: 50 });
+        this.n_fq3 = new Numberwang('fq3', { logEvery: 50 });
     };
     Visualizer.prototype = {
         maybeGotImageData: function () {
@@ -159,12 +204,22 @@ var superKewl = (function () {
             if (!this.running)
                 return;
 
-            this.analyser.getByteTimeDomainData(this.dataArray);
-            var freqBins = [], binWidth = this.dataArray.length / 4;
+            this.analyser.getByteFrequencyData(this.dataArray);
+            var maxFreq = this.audioCtx.sampleRate / 2;
+            console.info('MAX FREQ', maxFreq);
+            var data;
+            if (maxFreq > 20000) {
+                data = Array.prototype.slice.call(this.dataArray);
+                // TODO: Truncate frequency data on each side.
+            } else {
+                data = Array.prototype.slice.call(this.dataArray);
+            }
+
+            var freqBins = [], binWidth = data.length / 4;
             var sum = 0, volume = 0;
-            for (var i = 0; i < this.dataArray.length; i++) {
-                sum += this.dataArray[i];
-                if (i % binWidth === 3) {
+            for (var i = 0; i < data.length; i++) {
+                sum += data[i];
+                if (i % binWidth === binWidth - 1) {
                     sum /= binWidth;
                     freqBins.push(sum);
                     volume += sum;
@@ -173,12 +228,14 @@ var superKewl = (function () {
             }
             volume /= 4;
 
-            // console.debug(volume.toFixed(2), _.padEnd('=', volume, '-'));
+            volume = this.n_vol.next(volume);
+            freqBins[0] = this.n_fq0.next(freqBins[0]);
+            freqBins[1] = this.n_fq1.next(freqBins[1]);
+            freqBins[2] = this.n_fq2.next(freqBins[2]);
+            freqBins[3] = this.n_fq3.next(freqBins[3]);
 
-            console.debug( _.pad(volume.toFixed(2), 6), _.pad(freqBins[0].toFixed(2), 6), _.pad(freqBins[1].toFixed(2), 6), _.pad(freqBins[2].toFixed(2), 6), _.pad(freqBins[3].toFixed(2), 6));
-            // console.debug(volume);
 
-            var volumeStat = volume / 255;
+            var volumeStat = volume / 256;
 
             this._images.map.regions.forEach(function (r) {
                 var draw;
@@ -387,7 +444,7 @@ document.addEventListener('DOMContentLoaded', function () {
     vis.addImage('main', '/static/richards/map_demo.png');
 
     var audioEl = document.createElement('audio');
-    // audioEl.autoplay = true;
+    audioEl.autoplay = true;
     // audioEl.crossOrigin = "anonymous";
     audioEl.src = "/static/richards/song.mp3";
 
