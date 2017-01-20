@@ -17,17 +17,23 @@ var superKewl = (function () {
     };
     Region.prototype = {
         fillIntoCtx: function (ctx) {
+            if (this.last === 'fill')
+                return;
             this.pixels.forEach(function (pixel) {
                 var x = pixel % this.piccy.width;
                 var y = (pixel - x) / this.piccy.width;
                 ctx.fillRect(x, y, 1, 1);
             }, this);
+            this.last = 'fill';
         },
         clearFromCtx: function (ctx) {
+            if (this.last === 'clear')
+                return;
             this.pixels.forEach(function (pixel) {
                 var xy = this.piccy.idxToCoord(pixel);
                 ctx.clearRect(xy.x, xy.y, 1, 1);
             }, this);
+            this.last = 'clear';
         }
     };
 
@@ -74,8 +80,7 @@ var superKewl = (function () {
                 region.pixels.add(p);
             }
 
-            this.regions = _.sortBy(this.regions, 'hslStr');
-            console.info(_.map(this.regions, 'hslStr').join('\n'));
+            console.info(_.map(this.regions, 'color').join('\n'));
             console.info('BUILT', this.regions.length, 'REGIONS');
             console.info(this.regionsForColor);
         },
@@ -205,15 +210,18 @@ var superKewl = (function () {
                 return;
 
             this.analyser.getByteFrequencyData(this.dataArray);
+            var MAX_FREQ = 20000, MIN_FREQ = 20;
             var maxFreq = this.audioCtx.sampleRate / 2;
-            console.info('MAX FREQ', maxFreq);
-            var data;
-            if (maxFreq > 20000) {
-                data = Array.prototype.slice.call(this.dataArray);
-                // TODO: Truncate frequency data on each side.
-            } else {
-                data = Array.prototype.slice.call(this.dataArray);
-            }
+            // console.info('MAX FREQ', maxFreq);
+            var data = this.dataArray;
+            var endIdx = this.dataArray.length;
+            if (maxFreq > MAX_FREQ)
+                endIdx *= (MAX_FREQ / maxFreq);
+
+            var startIdx = Math.floor((endIdx / MAX_FREQ) * MIN_FREQ);
+            endIdx = startIdx + Math.floor((endIdx - startIdx) / 4) * 4;
+            console.info('TRUNCATING', this.dataArray.length, '->', endIdx - startIdx);
+            data = Array.prototype.slice.call(this.dataArray, startIdx, endIdx);
 
             var freqBins = [], binWidth = data.length / 4;
             var sum = 0, volume = 0;
