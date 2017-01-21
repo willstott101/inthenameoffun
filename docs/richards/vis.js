@@ -210,7 +210,7 @@ var superKewl = (function () {
                 return;
 
             this.analyser.getByteFrequencyData(this.dataArray);
-            var MAX_FREQ = 20000, MIN_FREQ = 20;
+            var MAX_FREQ = 16000, MIN_FREQ = 20;
             var maxFreq = this.audioCtx.sampleRate / 2;
             // console.info('MAX FREQ', maxFreq);
             var data = this.dataArray;
@@ -220,7 +220,7 @@ var superKewl = (function () {
 
             var startIdx = Math.floor((endIdx / MAX_FREQ) * MIN_FREQ);
             endIdx = startIdx + Math.floor((endIdx - startIdx) / 4) * 4;
-            console.info('TRUNCATING', this.dataArray.length, '->', endIdx - startIdx);
+            // console.info('TRUNCATING', this.dataArray.length, '->', endIdx - startIdx);
             data = Array.prototype.slice.call(this.dataArray, startIdx, endIdx);
 
             var freqBins = [], binWidth = data.length / 4;
@@ -447,18 +447,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
     var vis = new superKewl.Visualizer('vis-canvas');
     // vis.addImage('map', '/static/richards/map_mandala.png');
-    // vis.addImage('main', '/static/richards/src_mandala.png');
+    // vis.addImage('main', '/static/richards/map_mandala.png');
     vis.addImage('map', '/static/richards/map_demo.png');
     vis.addImage('main', '/static/richards/map_demo.png');
 
     var audioEl = document.createElement('audio');
     audioEl.autoplay = true;
     // audioEl.crossOrigin = "anonymous";
-    audioEl.src = "/static/richards/song.mp3";
+    audioEl.src = "/static/richards/song2.mp3";
 
     vis.setSource(audioEl);
 
     var editor = new superKewl.Editor('editor');
-    // editor.setImage('/static/richards/map_mandala.png');
-    editor.setImage('/static/richards/map_demo.png');
+    editor.setImage('/static/richards/map_mandala.png');
+    // editor.setImage('/static/richards/map_demo.png');
 }, false);
