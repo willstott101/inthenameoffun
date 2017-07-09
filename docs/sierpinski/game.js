@@ -6,6 +6,7 @@ var INITIAL_SIZE = 200;
 var INITIAL_SCALE_RATE = 15;
 var SCALE_ACCELERATION = 1.8;
 
+
 var GeomUtils = {
   // Defines some vectors which can be composed to traverse equilateral triangles.
   rightEdge: (new paper.Point(1, 0)).rotate(60, [0, 0]),
@@ -33,115 +34,171 @@ var GeomUtils = {
 
 GeomUtils.triHeight = GeomUtils.rightEdge.y;
 
+
 // Thanks http://stackoverflow.com/a/2901298
 function numberWithCommas(x) {
     return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
-var main = function () {
-  var _paper = new window.paper.PaperScope();
-  var getPaper = function () {
-    _paper.activate();
-    return window.paper;
+
+function Sierpinski(paperScope) {
+  var paper = this._paper = paperScope;
+
+  this.version = 2;
+
+  this.canvas = paper.view.element;
+  this.context = paper.view._context;
+
+  this.scoreEl = document.getElementById('game-score');
+  this.hiscoreEl = document.getElementById('game-hiscore');
+  this.msgEl = document.getElementById('game-msg');
+
+  document.addEventListener('mousedown', this.onMouseDown.bind(this));
+
+  paper.view.onFrame = this.onFrame.bind(this);
+  paper.view.onMouseMove = this.onMouseMove.bind(this);
+
+  this.reset();
+}
+
+Sierpinski.prototype.reset = function() {
+  this.state = {
+    score: 0,
+    finished: false,
+    start_time: (new Date()).getTime() / 1000,
+    size: INITIAL_SIZE,
   };
 
-  var paper = getPaper();
-  paper.setup('game-canvas');
+  this.updateHighScore();
+  this.setScore(0);
 
-  var canvas = paper.view.element;
-  var context = paper.view._context;
+  var paper = this.getPaper();
 
-  // Game variables
-  var START_TIME, SIZE, TRIANGLES, MOUSE_POS, FINISHED, SCORE;
+  this.state.triangles = [paper.view.center.add(0,(- GeomUtils.triHeight * this.state.size / 2) + 1)];
 
-  var scoreEl = document.getElementById('game-score');
-  var updateScore = _.throttle(function () {
-    scoreEl.innerHTML = numberWithCommas(Math.round(SCORE));
-  }, 80);
-  var hiscoreEl = document.getElementById('game-hiscore');
-  var setHighScore = function () {
-    hiscoreEl.innerHTML = numberWithCommas(Math.round(SCORE));
-    localStorage.highscore_v1 = SCORE;
-  };
-  if (localStorage.highscore_v1)
-    hiscoreEl.innerHTML = numberWithCommas(parseInt(localStorage.highscore_v1));
+  this.state.mouse_pos = new paper.Point(paper.view.center);
 
-  var endmsgEl = document.getElementById('game-msg');
-  document.addEventListener('mousedown', function () {
-    if (FINISHED)
-      newGame();
-  });
+  this.setMsg(false);
+};
 
-  var newGame = function () {
-    endmsgEl.classList.add('hidden');
+Sierpinski.prototype.finish = function() {
+  this.state.finished = true;
+  this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    START_TIME = (new Date()).getTime() / 1000;
-    FINISHED = false;
+  this.setMsg(true);
 
-    SIZE = INITIAL_SIZE;
+  this.saveHighScore();
+};
 
-    TRIANGLES = [paper.view.center.add(0,(- GeomUtils.triHeight * SIZE / 2) + 1)];
+Sierpinski.prototype.getPaper = function() {
+  this._paper.activate();
+  return window.paper;
+};
 
-    MOUSE_POS = new paper.Point(paper.view.center);
+Sierpinski.prototype.setScore = function(score) {
+  this.state.score = score;
+  this.renderScore();
+};
 
-    scoreEl.innerHTML = 0;
-  };
+Sierpinski.prototype.renderScore = _.throttle(function() {
+  this.scoreEl.innerHTML = numberWithCommas(Math.round(this.state.score));
+}, 80);
 
-  var endGame = function () {
-    FINISHED = true;
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    endmsgEl.classList.remove('hidden');
-    if (!localStorage.highscore_v1 || parseInt(localStorage.highscore_v1) < SCORE)
-      setHighScore();
-  };
+Sierpinski.prototype.updateHighScore = function() {
+  var hs = localStorage['highscore_v' + this.version];
+    if (hs)
+      this.hiscoreEl.innerHTML = numberWithCommas(parseInt(hs));
+};
 
-  paper.view.onMouseMove = function (evt) {
-    MOUSE_POS = evt.point;
-  };
+Sierpinski.prototype.saveHighScore = function() {
+  var score = localStorage['highscore_v' + this.version];
 
-  paper.view.onFrame = function (evt) {
-    if (FINISHED)
+  if (!score || parseInt(score) < this.state.score)
+    localStorage['highscore_v' + this.version] = this.state.score;
+};
+
+Sierpinski.prototype.onMouseDown = function() {
+    if (this.state.finished)
+      // TODO: newGame was called
+      this.reset();
+};
+
+Sierpinski.prototype.onMouseMove = function(evt) {
+    this.state.mouse_pos = evt.point;
+};
+
+Sierpinski.prototype.setMsg = function(msg) {
+    if (msg)
+    {
+      if (msg !== true)
+        this.msgEl.innerHTML = msg;
+      this.msgEl.classList.remove('hidden');
+    }
+    else
+      this.msgEl.classList.add('hidden');
+};
+
+Sierpinski.prototype.onFrame = function(evt) {
+    if (this.state.finished)
       return;
 
-    var bounds = paper.view.bounds;
-    var center = paper.view.center;
-    var width = bounds.width;
-    var height = bounds.height;
+    this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    context.clearRect(0, 0, canvas.width, canvas.height);
+    var time = ((new Date()).getTime() / 1000) - this.state.start_time;
 
-    var time = ((new Date()).getTime() / 1000) - START_TIME;
+    this.setScore(time * 1000);
 
-    SCORE = time * 1000;
-    updateScore();
+    this._doZoom(evt, time);
 
+    this._realignTriangles();
+
+    this._cullTriangles();
+
+    this._renderTriangles();
+
+    if (this.state.triangles.length === 0)
+    {
+      this.finish();
+      return;
+    }
+
+};
+
+Sierpinski.prototype._doZoom = function(evt, time) {
     var increase = (INITIAL_SCALE_RATE + (time * SCALE_ACCELERATION)) * evt.delta;
     if (increase > 0)
-      scale = (increase / SIZE) + 1;
+      scale = (increase / this.state.size) + 1;
     else
       scale = 1;
-    SIZE += increase;
+    this.state.size += increase;
 
-    while (SIZE > MAX_FRACTAL_SIZE) {
+    // Original:
+      // zoomRate = 0.00001;
+      // size *= 1 + zoomRate*dt
+      // zoomRate += (5e-8) * dt;
+
+    while (this.state.size > MAX_FRACTAL_SIZE) {
       console.debug('DOING SPLIT');
-      SIZE /= 2;
-      TRIANGLES = GeomUtils.splitTrianglePositions(TRIANGLES, SIZE);
+      this.state.size /= 2;
+      this.state.triangles = GeomUtils.splitTrianglePositions(this.state.triangles, this.state.size);
     }
 
     // Move the triangles out to adjust for the scaling.
-    var centerOfScaling = MOUSE_POS;
-    TRIANGLES = TRIANGLES.map(function (tp)
+    var centerOfScaling = this.state.mouse_pos;
+    this.state.triangles = this.state.triangles.map(function (tp)
     {
       return centerOfScaling.add(tp.subtract(centerOfScaling).multiply(scale));
     });
+};
 
-    var halfEdgeSize = SIZE / 2;
-    var triHeight = GeomUtils.triHeight * SIZE;
+Sierpinski.prototype._realignTriangles = function() {
+    var halfEdgeSize = this.state.size / 2;
+    var triHeight = GeomUtils.triHeight * this.state.size;
 
-    // QDH: Avoid compound error in TRIANGLES by aligning to a grid.
-    var firstTriangleX = TRIANGLES[0].x;
-    var firstTriangleY = TRIANGLES[0].y;
-    TRIANGLES.forEach(function (tp)
+    // QDH: Avoid compound error in triangle list by aligning with the first one.
+    var firstTriangleX = this.state.triangles[0].x;
+    var firstTriangleY = this.state.triangles[0].y;
+    this.state.triangles.forEach(function (tp)
     {
       var x = tp.x - firstTriangleX;
       x = (Math.round(x / halfEdgeSize) * halfEdgeSize);
@@ -150,35 +207,43 @@ var main = function () {
       y = (Math.round(y / triHeight) * triHeight);
       tp.y = y + firstTriangleY;
     });
-
-    // Filter the triangles which are off the screen.
-    var triangleHeight = GeomUtils.rightEdge.y * SIZE;
-    TRIANGLES = TRIANGLES.filter(function (tp)
-    {
-      return !(
-        tp.y > height ||
-        tp.y < - triangleHeight ||
-        tp.x - halfEdgeSize > width ||
-        tp.x + halfEdgeSize < 0);
-    });
-
-    if (TRIANGLES.length === 0) {
-      endGame();
-      return;
-    }
-
-    // console.info('Drawing', TRIANGLES.length, 'triangles of size', SIZE);
-    // Draw the remaining triangles to the canvas.
-    context.fillStyle = 'black';
-    TRIANGLES.forEach(function (tp) {
-      GeomUtils.pathTriangle(context, tp, SIZE);
-      context.fill();
-    });
-  };
-
-  newGame();
-
 };
 
+Sierpinski.prototype._cullTriangles = function() {
+  var bounds = this.getPaper().view.bounds;
+  var width = bounds.width;
+  var height = bounds.height;
+  var halfEdgeSize = this.state.size / 2;
+
+  // Filter the triangles which are off the screen.
+  var triangleHeight = GeomUtils.rightEdge.y * this.state.size;
+  this.state.triangles = this.state.triangles.filter(function (tp)
+  {
+    return !(
+      tp.y > height ||
+      tp.y < - triangleHeight ||
+      tp.x - halfEdgeSize > width ||
+      tp.x + halfEdgeSize < 0);
+  });
+};
+
+Sierpinski.prototype._renderTriangles = function() {
+  // Draw the remaining triangles to the canvas.
+  this.context.fillStyle = 'black';
+  this.state.triangles.forEach(function (tp) {
+    GeomUtils.pathTriangle(this.context, tp, this.state.size);
+    this.context.fill();
+  }, this);
+};
+
+
+
+var main = function () {
+  var paper = new window.paper.PaperScope();
+  paper.setup('game-canvas');
+
+  window.Game = new Sierpinski(paper);
+
+};
 
 document.addEventListener('DOMContentLoaded', main, false);
