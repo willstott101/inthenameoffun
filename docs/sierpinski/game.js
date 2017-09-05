@@ -41,10 +41,84 @@ function numberWithCommas(x) {
 }
 
 
+function Line(point1, point2) {
+  this.point1 = point1;
+  this.point2 = point2;
+}
+
+Line.prototype._distanceSq = function (v, w) {
+  return Math.pow(v.x - w.x, 2) + Math.pow(v.y - w.y, 2);
+};
+
+// Thanks https://stackoverflow.com/a/1501725/4021086
+Line.prototype.distanceToPointSquared = function (point) {
+  var v = this.point1;
+  var w = this.point2;
+  var p = point;
+  var l2 = this._distanceSq(v, w);
+  if (l2 == 0) return this._distanceSq(p, v);
+  var t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return this._distanceSq(p, { x: v.x + t * (w.x - v.x),
+                               y: v.y + t * (w.y - v.y) });
+};
+
+Line.prototype.distanceToPoint = function (point) {
+  return Math.sqrt(this.distToPointSquared(point));
+};
+
+Line.prototype.getDx = function () {
+  return this.point2.x - this.point1.x;
+};
+
+Line.prototype.getDy = function () {
+  return this.point2.y - this.point1.y;
+};
+
+Line.prototype.getC = function () {
+  var p1 = this.point1;
+  return p1.y - (p1.x * this.getM());
+};
+
+Line.prototype.getM = function () {
+  return this.getDy() / this.getDx();
+};
+
+Line.prototype.getKey = function () {
+  return this.getM().toFixed(4) + '::' + this.getC().toFixed(1);
+};
+
+Line.prototype.start = function () {
+  return new paper.Point(0, this.getC())
+};
+
+Line.prototype.vector = function () {
+  return new paper.Point(1, this.getM())
+};
+
+Line.prototype.path = function (canvas, ctx) {
+  ctx.beginPath();
+  var c = this.getC();
+  ctx.moveTo(0, c);
+  var width = canvas.width;
+  ctx.lineTo(width, (this.getM() * width) + c);
+};
+
+Line.prototype.dots = function (ctx) {
+  var v = this.point1;
+  var w = this.point2;
+  ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+  ctx.fillRect(v.x - 5, v.y - 5, 10, 10);
+
+  ctx.fillStyle = 'rgba(0, 0, 255, 0.5)';
+  ctx.fillRect(w.x - 5, w.y - 5, 10, 10);
+};
+
+
 function Sierpinski(paperScope) {
   var paper = this._paper = paperScope;
 
-  this.version = 2;
+  this.version = 1;
 
   this.canvas = paper.view.element;
   this.context = paper.view._context;
@@ -106,8 +180,8 @@ Sierpinski.prototype.renderScore = _.throttle(function() {
 
 Sierpinski.prototype.updateHighScore = function() {
   var hs = localStorage['highscore_v' + this.version];
-    if (hs)
-      this.hiscoreEl.innerHTML = numberWithCommas(parseInt(hs));
+  if (hs)
+    this.hiscoreEl.innerHTML = numberWithCommas(parseInt(hs));
 };
 
 Sierpinski.prototype.saveHighScore = function() {
@@ -118,95 +192,98 @@ Sierpinski.prototype.saveHighScore = function() {
 };
 
 Sierpinski.prototype.onMouseDown = function() {
-    if (this.state.finished)
-      // TODO: newGame was called
-      this.reset();
+  if (this.state.finished)
+    // TODO: newGame was called
+    this.reset();
 };
 
 Sierpinski.prototype.onMouseMove = function(evt) {
-    this.state.mouse_pos = evt.point;
+  this.state.mouse_pos = evt.point;
 };
 
 Sierpinski.prototype.setMsg = function(msg) {
-    if (msg)
-    {
-      if (msg !== true)
-        this.msgEl.innerHTML = msg;
-      this.msgEl.classList.remove('hidden');
-    }
-    else
-      this.msgEl.classList.add('hidden');
+  if (msg)
+  {
+    if (msg !== true)
+      this.msgEl.innerHTML = msg;
+    this.msgEl.classList.remove('hidden');
+  }
+  else
+    this.msgEl.classList.add('hidden');
 };
 
 Sierpinski.prototype.onFrame = function(evt) {
-    if (this.state.finished)
-      return;
+  if (this.state.finished)
+    return;
 
-    this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    var time = ((new Date()).getTime() / 1000) - this.state.start_time;
+  var time = ((new Date()).getTime() / 1000) - this.state.start_time;
 
-    this.setScore(time * 1000);
+  this.setScore(time * 1000);
 
-    this._doZoom(evt, time);
+  this._doZoom(evt, time);
 
-    this._realignTriangles();
+  this._realignTriangles();
 
-    this._cullTriangles();
+  this._cullTriangles();
 
-    this._renderTriangles();
+  this._renderTriangles();
 
-    if (this.state.triangles.length === 0)
-    {
-      this.finish();
-      return;
-    }
+  var edges = this._findEdges();
+  this._drawEdges(edges);
+
+  if (this.state.triangles.length === 0)
+  {
+    this.finish();
+    return;
+  }
 
 };
 
 Sierpinski.prototype._doZoom = function(evt, time) {
-    var increase = (INITIAL_SCALE_RATE + (time * SCALE_ACCELERATION)) * evt.delta;
-    if (increase > 0)
-      scale = (increase / this.state.size) + 1;
-    else
-      scale = 1;
-    this.state.size += increase;
+  var increase = (INITIAL_SCALE_RATE + (time * SCALE_ACCELERATION)) * evt.delta;
+  if (increase > 0)
+    scale = (increase / this.state.size) + 1;
+  else
+    scale = 1;
+  this.state.size += increase;
 
-    // Original:
-      // zoomRate = 0.00001;
-      // size *= 1 + zoomRate*dt
-      // zoomRate += (5e-8) * dt;
+  // Original:
+    // zoomRate = 0.00001;
+    // size *= 1 + zoomRate*dt
+    // zoomRate += (5e-8) * dt;
 
-    while (this.state.size > MAX_FRACTAL_SIZE) {
-      console.debug('DOING SPLIT');
-      this.state.size /= 2;
-      this.state.triangles = GeomUtils.splitTrianglePositions(this.state.triangles, this.state.size);
-    }
+  while (this.state.size > MAX_FRACTAL_SIZE) {
+    console.debug('DOING SPLIT');
+    this.state.size /= 2;
+    this.state.triangles = GeomUtils.splitTrianglePositions(this.state.triangles, this.state.size);
+  }
 
-    // Move the triangles out to adjust for the scaling.
-    var centerOfScaling = this.state.mouse_pos;
-    this.state.triangles = this.state.triangles.map(function (tp)
-    {
-      return centerOfScaling.add(tp.subtract(centerOfScaling).multiply(scale));
-    });
+  // Move the triangles out to adjust for the scaling.
+  var centerOfScaling = this.state.mouse_pos;
+  this.state.triangles = this.state.triangles.map(function (tp)
+  {
+    return centerOfScaling.add(tp.subtract(centerOfScaling).multiply(scale));
+  });
 };
 
 Sierpinski.prototype._realignTriangles = function() {
-    var halfEdgeSize = this.state.size / 2;
-    var triHeight = GeomUtils.triHeight * this.state.size;
+  var halfEdgeSize = this.state.size / 2;
+  var triHeight = GeomUtils.triHeight * this.state.size;
 
-    // QDH: Avoid compound error in triangle list by aligning with the first one.
-    var firstTriangleX = this.state.triangles[0].x;
-    var firstTriangleY = this.state.triangles[0].y;
-    this.state.triangles.forEach(function (tp)
-    {
-      var x = tp.x - firstTriangleX;
-      x = (Math.round(x / halfEdgeSize) * halfEdgeSize);
-      tp.x = x + firstTriangleX;
-      var y = tp.y - firstTriangleY;
-      y = (Math.round(y / triHeight) * triHeight);
-      tp.y = y + firstTriangleY;
-    });
+  // QDH: Avoid compound error in triangle list by aligning with the first one.
+  var firstTriangleX = this.state.triangles[0].x;
+  var firstTriangleY = this.state.triangles[0].y;
+  this.state.triangles.forEach(function (tp)
+  {
+    var x = tp.x - firstTriangleX;
+    x = (Math.round(x / halfEdgeSize) * halfEdgeSize);
+    tp.x = x + firstTriangleX;
+    var y = tp.y - firstTriangleY;
+    y = (Math.round(y / triHeight) * triHeight);
+    tp.y = y + firstTriangleY;
+  });
 };
 
 Sierpinski.prototype._cullTriangles = function() {
@@ -236,6 +313,42 @@ Sierpinski.prototype._renderTriangles = function() {
   }, this);
 };
 
+Sierpinski.prototype._findEdges = function() {
+  var edges = {};
+  var rightEdge = GeomUtils.rightEdge.multiply(this.state.size);
+  var downLeft = GeomUtils.downLeft.multiply(this.state.size);
+  this.state.triangles.forEach(function (tp) {
+    var br = tp.add(rightEdge);
+    var bl = tp.add(downLeft);
+    var bottom = new Line(bl, br);
+    var left = new Line(tp, bl);
+    var right = new Line(tp, br);
+    var k = bottom.getKey();
+    if (!edges.hasOwnProperty(k))
+      edges[k] = bottom;
+    k = left.getKey();
+    if (!edges.hasOwnProperty(k))
+     edges[k] = left;
+    k = right.getKey();
+    if (!edges.hasOwnProperty(k))
+     edges[k] = right;
+   console.debug(right.getM(), left.getM());
+  }, this);
+  return edges;
+};
+
+Sierpinski.prototype._drawEdges = function(edges) {
+  var canvas = this.canvas;
+  var ctx = this.context;
+  ctx.strokeStyle = "pink";
+  _.forOwn(edges, function(line, key) {
+    line.path(canvas, ctx);
+    line.dots(ctx);
+    ctx.stroke();
+  });
+  console.debug('triangles', this.state.triangles.length, 'lines', _.size(edges));
+};
+
 
 
 var main = function () {
@@ -243,7 +356,6 @@ var main = function () {
   paper.setup('game-canvas');
 
   window.Game = new Sierpinski(paper);
-
 };
 
 document.addEventListener('DOMContentLoaded', main, false);
