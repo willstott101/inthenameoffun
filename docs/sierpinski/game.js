@@ -230,8 +230,8 @@ Sierpinski.prototype.onFrame = function(evt) {
 
   this._renderTriangles();
 
-  var edges = this._findEdges();
-  this._drawEdges(edges);
+  // var edges = this._findEdges();
+  // this._drawEdges(edges);
 
   if (this.state.triangles.length === 0)
   {
