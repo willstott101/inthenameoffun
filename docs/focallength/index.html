@@ -1,0 +1,59 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+
+  <title>Focal Length | inthenameoffun</title>
+  <meta name="description" content="Scrubbable gif illustrating focal length.">
+  <meta name="author" content="Will Stott">
+
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.6/semantic.min.css">
+
+  <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.6/semantic.min.js"></script>
+
+  <script src="//rawgit.com/matt-way/gifuct-js/master/dist/gifuct-js.min.js"></script>
+
+  <script type="text/javascript">
+
+  	var url = "https://i.imgur.com/eWRUjlp.gif";
+
+  	var promisedGif = fetch(url, {
+      mode: 'cors',
+      headers:{
+        'Access-Control-Allow-Origin':'*'
+      },
+    })
+      .then(resp => resp.arrayBuffer())
+      .then(buff => new GIF(buff))
+      .then(gif => gif.decompressFrames(true));
+
+    $(function() {
+
+      var canvas = $('canvas')[0];
+
+      var ctx = canvas.getContext('2D');
+
+      promisedGif.then(frames => console.debug(frames));
+
+    });
+  </script>
+
+  <!--[if lt IE 9]>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv.js"></script>
+  <![endif]-->
+</head>
+
+<body>
+  <canvas width="800" height="800">You need canvas support for this. Upgrade your browser.</canvas>
+
+</body>
+
+<footer>
+  A quick development by <a href="https://www.github.com/willstott101">Will Stott</a>.
+  <br>
+  Inspired by <a href="https://www.reddit.com/r/evilbuildings/comments/878a3p/you_are_the_property_of_the_grandmaster/dwb2ohk/?context=3">this reddit thread</a> starring <a href="http://www.danvojtech.cz/blog/2016/07/amazing-how-focal-length-affect-shape-of-the-face/">Dan Vojtěch's GIF</a>.
+</footer>
+
+</html>
