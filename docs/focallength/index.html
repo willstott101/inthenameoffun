@@ -24,13 +24,78 @@
       .then(buff => new GIF(buff))
       .then(gif => gif.decompressFrames(true));
 
+    var frames, ctx;
+
+    var targetNum, currentNum;
+
+    function renderTarget () {
+      // console.debug('renderTarget', 'currentNum', currentNum, 'targetNum', targetNum);
+      if (targetNum === currentNum)
+        return;
+      // console.debug(' -- renderTarget', 1, frames, ctx);
+
+      if (!frames || !ctx)
+        return scheduleRender();
+
+      // console.debug(' -- renderTarget', 2);
+
+      if (!currentNum)
+        currentNum = 1; // Initialize
+
+      // console.debug(' -- renderTarget', 2);
+
+      var toDraw = frames;
+      if (targetNum > currentNum)
+        toDraw = toDraw.slice(currentNum - 1, targetNum);
+      else
+        toDraw = toDraw.slice(0, targetNum);
+
+      for (var i = 0; i < toDraw.length; i++) {
+        let frame = toDraw[i];
+        let data = ctx.createImageData(frame.dims.width, frame.dims.height);
+        data.data.set(frame.patch);
+        ctx.putImageData(data, frame.x, frame.y);
+      }
+
+      currentNum = targetNum;
+    }
+
+    function scheduleRender () {
+      // console.debug('scheduleRender', 'currentNum', currentNum, 'targetNum', targetNum);
+      requestAnimationFrame(function () {
+        renderTarget();
+      });
+    }
+
+    function displayFrameSoon (num) {
+      // console.debug('displayFrameSoon', num, 'currentNum', currentNum, 'targetNum', targetNum);
+      if (num === currentNum)
+        targetNum = num; // No action needed
+      if (num === targetNum)
+        return; // No further action needed
+
+      var scheduled = targetNum && targetNum !== currentNum;
+      targetNum = num;
+
+      if (!scheduled)
+        scheduleRender();
+    }
+
     $(function() {
 
       var canvas = $('canvas')[0];
 
-      var ctx = canvas.getContext('2D');
+      ctx = canvas.getContext('2d');
 
-      promisedGif.then(frames => console.debug(frames));
+      promisedGif.then(loadedFrames => {
+        frames = loadedFrames;
+        displayFrameSoon(1);
+      });
+
+      var slider = $('input[type=range]')[0];
+      slider.addEventListener('input', evt => {
+        displayFrameSoon(evt.target.value);
+      });
 
     });
   </script>
@@ -43,10 +108,19 @@
 <body>
   <canvas width="800" height="800">You need canvas support for this. Upgrade your browser.</canvas>
 
+  <input type="range" min="1" max="61">
+
   <footer>
     A quick development by <a href="https://www.github.com/willstott101">Will Stott</a>.
     <br>
-    Inspired by <a href="https://www.reddit.com/r/evilbuildings/comments/878a3p/you_are_the_property_of_the_grandmaster/dwb2ohk/?context=3">this reddit thread</a> starring <a href="http://www.danvojtech.cz/blog/2016/07/amazing-how-focal-length-affect-shape-of-the-face/">Dan Vojtěch's GIF</a>.
+    Inspired by
+    <a href="https://www.reddit.com/r/evilbuildings/comments/878a3p/you_are_the_property_of_the_grandmaster/dwb2ohk/?context=3">
+      this reddit thread
+    </a>
+    starring
+    <a href="http://www.danvojtech.cz/blog/2016/07/amazing-how-focal-length-affect-shape-of-the-face/">
+      Dan Vojtěch's GIF
+    </a>.
   </footer>
 </body>
 
