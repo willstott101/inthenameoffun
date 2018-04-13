@@ -13,11 +13,12 @@
   <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
   <script src="//cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.6/semantic.min.js"></script>
 
-  <script src="//rawgit.com/matt-way/gifuct-js/master/dist/gifuct-js.min.js"></script>
+  <!-- <script src="//rawgit.com/matt-way/gifuct-js/master/dist/gifuct-js.min.js"></script> -->
+  <script src="/static/libs/gifuct.js"></script>
 
   <script type="text/javascript">
 
-  	var url = "https://i.imgur.com/eWRUjlp.gif";
+  	var url = "thegif.gif";
 
   	var promisedGif = fetch(url)
       .then(resp => resp.arrayBuffer())
@@ -26,23 +27,30 @@
 
     var frames, ctx;
 
+    var buffCanvas = document.createElement('canvas');
+    var buffCtx = buffCanvas.getContext('2d');
+    var buffer;
+
     var targetNum, currentNum;
 
+    function prepBufferCanvas (width, height) {
+      if (!buffer || buffer.width != width || buffer.height != height)
+      {
+        buffCanvas.width = width;
+        buffCanvas.height = height;
+        buffer = buffCtx.createImageData(width, height);
+      }
+    }
+
     function renderTarget () {
-      // console.debug('renderTarget', 'currentNum', currentNum, 'targetNum', targetNum);
       if (targetNum === currentNum)
         return;
-      // console.debug(' -- renderTarget', 1, frames, ctx);
 
       if (!frames || !ctx)
         return scheduleRender();
 
-      // console.debug(' -- renderTarget', 2);
-
       if (!currentNum)
         currentNum = 1; // Initialize
-
-      // console.debug(' -- renderTarget', 2);
 
       var toDraw = frames;
       if (targetNum > currentNum)
@@ -52,23 +60,22 @@
 
       for (var i = 0; i < toDraw.length; i++) {
         let frame = toDraw[i];
-        let data = ctx.createImageData(frame.dims.width, frame.dims.height);
-        data.data.set(frame.patch);
-        ctx.putImageData(data, frame.x, frame.y);
+        prepBufferCanvas(frame.dims.width, frame.dims.height);
+        buffer.data.set(frame.patch);
+        buffCtx.putImageData(buffer, 0, 0);
+        ctx.drawImage(buffCanvas, frame.dims.left, frame.dims.top);
       }
 
       currentNum = targetNum;
     }
 
     function scheduleRender () {
-      // console.debug('scheduleRender', 'currentNum', currentNum, 'targetNum', targetNum);
       requestAnimationFrame(function () {
         renderTarget();
       });
     }
 
     function displayFrameSoon (num) {
-      // console.debug('displayFrameSoon', num, 'currentNum', currentNum, 'targetNum', targetNum);
       if (num === currentNum)
         targetNum = num; // No action needed
       if (num === targetNum)
@@ -84,15 +91,17 @@
     $(function() {
 
       var canvas = $('canvas')[0];
-
       ctx = canvas.getContext('2d');
+
+      var slider = $('input[type=range]')[0];
 
       promisedGif.then(loadedFrames => {
         frames = loadedFrames;
         displayFrameSoon(1);
+
+        slider.removeAttribute('disabled', 'false');
       });
 
-      var slider = $('input[type=range]')[0];
       slider.addEventListener('input', evt => {
         displayFrameSoon(evt.target.value);
       });
@@ -108,7 +117,7 @@
 <body>
   <canvas width="800" height="800">You need canvas support for this. Upgrade your browser.</canvas>
 
-  <input type="range" min="1" max="61">
+  <input type="range" min="1" max="11" value="1" disabled="true">
 
   <footer>
     A quick development by <a href="https://www.github.com/willstott101">Will Stott</a>.
