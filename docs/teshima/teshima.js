@@ -8,6 +8,7 @@ function ready(fn) {
         doc.addEventListener('DOMContentLoaded', fn);
 }
 
+
 class Array3 {
     constructor(width, height, stride) {
         this.stride = stride; // Cannot change stride atm.
@@ -58,14 +59,34 @@ class Array3 {
     initialize(x, y, width, height) {
 
     }
+
+    setElement(x, y, i, value) {
+        this.array[y * this.width * this.stride + x * this.stride + i] = value
+    }
 }
+
 
 class Concrete extends Array2 {
     // 2D array of cixels (concrete pixels)
     // Needs ot store:
         // Height (of concrete)
         // Wetness (willingness for water to travel here)
+    constructor(width, height) {
+        this.simplex =  new SimplexNoise();
+
+        super.constructor(width, height, 2)
+    }
+
+    initialize(x, y, width, height) {
+        const x2 = x + width;
+        const y2 = y + height;
+        for (x; x < x2; x++) {
+            for (y; y < height; y++)
+                this.setElement(x, y, 0, Math.floor(this.simplex.noise2D(x, y) * 128 + 128));
+        }
+    }
 }
+
 
 class Water extends Array2 {
     // 2D array of wixels (water pixels)
@@ -73,6 +94,7 @@ class Water extends Array2 {
         // Volume (of water in this wixel)
         // 2D Velocity (of water in this wixel)
 }
+
 
 ready(function ()
 {
