@@ -15,9 +15,9 @@ class Array3Drawable {
         this.width = this.height = 0;
     }
 
-    init(width, height) {
-        this.size(width, height);
-    }
+    // init(width, height) {
+    //     this.size(width, height);
+    // }
 
     size(width, height) {
         if (this.height === height && this.width === width)
@@ -151,20 +151,22 @@ const ctx = canvas.getContext('2d');
 var cWidth;
 var cHeight;
 
+var water = new Water();
+var concrete = new Concrete(1);
+
 function sizeCanvas() {
     // TODO: don't always use maximum resolution.
     // Perhaps reduce the resolution if performance is bad..?
     cWidth = canvas.width = window.innerWidth;
     cHeight = canvas.height = window.innerHeight;
+    water.size(cWidth, cHeight);
+    concrete.size(cWidth, cHeight);
+    concrete.render(canvas, ctx);
 }
 
 sizeCanvas();
 window.addEventListener('resize', sizeCanvas, true);
 
-var water = new Water();
-water.init(cWidth, cHeight);
-var concrete = new Concrete(1);
-concrete.init(cWidth, cHeight);
 concrete.render(canvas, ctx);
 
 console.log(water);
