@@ -96,6 +96,8 @@ class Concrete extends Array3Drawable {
     generate(x, y, width, height) {
         const x2 = x + width;
         const y2 = y + height;
+
+        console.log('Concrete generating rect:', x, y, width, height);
         
         for (let yi = y; yi < y2; yi++) {
             for (let xi = x; xi < x2; xi++) {
@@ -103,9 +105,17 @@ class Concrete extends Array3Drawable {
                 for (var i = 0; i < this.scales.length; i++)
                 {
                     let v = this.simplex.noise2D(xi * this.scales[i], yi * this.scales[i]);
-                    tv *= v;
+                    // tv *= v;
                     // tv = Math.max(tv, v);
+                    tv += v + 1;
                 }
+                if (tv > 3)
+                    tv = 1;
+                else if (tv < -3)
+                    tv = -1;
+                else
+                    tv = tv / 3;
+
                 this.setElement(xi, yi, 0, Math.floor(tv * 128 + 128));
             }
         }
@@ -132,8 +142,8 @@ class Concrete extends Array3Drawable {
                 // debugger;
             }
         }
-        console.debug(sum / (w * h));
-        console.debug(mode);
+        // console.debug(sum / (w * h));
+        // console.debug(mode);
         // debugger;
         ctx.putImageData(dat, 0, 0);
     }
@@ -157,6 +167,7 @@ function connectConcreteScaleSliders(concrete, cb) {
     function setScales()
     {
         concrete.scales = [scale1.value, scale2.value, scale3.value];
+        console.log('Regenerating with scales:', concrete.scales);
         concrete.regenerate();
         cb();
     }
