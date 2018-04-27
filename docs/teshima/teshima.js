@@ -15,16 +15,12 @@ class Array3Drawable {
         this.width = this.height = 0;
     }
 
-    // init(width, height) {
-    //     this.size(width, height);
-    // }
-
     size(width, height) {
         if (this.height === height && this.width === width)
             return; // No Change.
 
         var array; // TODO: Don't always cut off the underlying buffer?
-        // Instead keep at maximum seen dimensions?
+        // Perhaps keep at maximum seen dimensions?
 
         const rects = [];
 
@@ -82,28 +78,38 @@ class Concrete extends Array3Drawable {
     // Needs ot store:
         // Height (of concrete)
         // Wetness (willingness for water to travel here)
-    constructor(scale) {
+    constructor(scales) {
         super(2);
 
         this.simplex = new SimplexNoise();
-        this.scale = scale;
+        this.scales = scales;
     }
 
     initialize(x, y, width, height) {
-        const x2 = x + width;
-        const y2 = y + height;
-        console.debug('initialize', x, y, x2, y2);
-        for (let yi = y; yi < y2; yi++) {
-            for (let xi = x; xi < x2; xi++) {
-                this.setElement(xi, yi, 0, Math.floor(this.simplex.noise2D(xi * this.scale, yi * this.scale) * 128 + 128));
-            }
-            // debugger;
-        }
+        this.generate(x, y, width, height);
     }
 
-    // size(width, height) {
-    //     super.size(width, height);
-    // }
+    regenerate() {
+        this.generate(0, 0, this.width, this.height);
+    }
+
+    generate(x, y, width, height) {
+        const x2 = x + width;
+        const y2 = y + height;
+        
+        for (let yi = y; yi < y2; yi++) {
+            for (let xi = x; xi < x2; xi++) {
+                let tv = -1;
+                for (var i = 0; i < this.scales.length; i++)
+                {
+                    let v = this.simplex.noise2D(xi * this.scales[i], yi * this.scales[i]);
+                    tv *= v;
+                    // tv = Math.max(tv, v);
+                }
+                this.setElement(xi, yi, 0, Math.floor(tv * 128 + 128));
+            }
+        }
+    }
 
     render(canvas, ctx) {
         const w = canvas.width;
@@ -142,6 +148,27 @@ class Water extends Array3Drawable {
 }
 
 
+function connectConcreteScaleSliders(concrete, cb) {
+    const doc = document;
+    const scale1 = doc.getElementById('scale1');
+    const scale2 = doc.getElementById('scale2');
+    const scale3 = doc.getElementById('scale3');
+
+    function setScales()
+    {
+        concrete.scales = [scale1.value, scale2.value, scale3.value];
+        concrete.regenerate();
+        cb();
+    }
+
+    scale1.addEventListener('change', setScales);
+    scale2.addEventListener('change', setScales);
+    scale3.addEventListener('change', setScales);
+
+    setScales();
+}
+
+
 ready(function ()
 {
 const doc = document;
@@ -152,7 +179,7 @@ var cWidth;
 var cHeight;
 
 var water = new Water();
-var concrete = new Concrete(1);
+var concrete = new Concrete([]);
 
 function sizeCanvas() {
     // TODO: don't always use maximum resolution.
@@ -167,7 +194,10 @@ function sizeCanvas() {
 sizeCanvas();
 window.addEventListener('resize', sizeCanvas, true);
 
-concrete.render(canvas, ctx);
+connectConcreteScaleSliders(concrete, () => {
+    concrete.render(canvas, ctx);
+});
+// concrete.render(canvas, ctx);
 
 console.log(water);
 console.log(concrete);
