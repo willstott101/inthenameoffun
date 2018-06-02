@@ -59,12 +59,12 @@ class Array3Drawable {
 
     }
 
-    setElement(x, y, i, value) {
-        this.array[(y * this.width + x) * this.stride + i] = value;
+    setElement(x, y, i, value, array) {
+        (array || this.array)[(y * this.width + x) * this.stride + i] = value;
     }
 
-    getElement(x, y, i) {
-        return this.array[(y * this.width + x) * this.stride + i];
+    getElement(x, y, i, array) {
+        return (array || this.array)[(y * this.width + x) * this.stride + i];
     }
 
     render(canvas, ctx) { }
@@ -91,6 +91,12 @@ class Concrete extends Array3Drawable {
 
     regenerate() {
         this.generate(0, 0, this.width, this.height);
+    }
+
+    setScales(scale1, scale2, scale3) {
+        this.scales = [scale1, scale2, scale3];
+        console.log('Regenerating with scales:', this.scales);
+        this.regenerate();
     }
 
     generate(x, y, width, height) {
@@ -124,8 +130,8 @@ class Concrete extends Array3Drawable {
     render(canvas, ctx) {
         const w = canvas.width;
         const h = canvas.height;
-        var mode = {};
-        var sum = 0;
+        // var mode = {};
+        // var sum = 0;
         const dat = ctx.createImageData(w, h);
         for (let x = 0; x < w; x++) {
             for (let y = 0; y < h; y++)
@@ -136,15 +142,14 @@ class Concrete extends Array3Drawable {
                 dat.data[i + 1] = v;
                 dat.data[i + 2] = v;
                 dat.data[i + 3] = 256;
-                mode[v] = (mode[v] || 0) + 1;
-                sum += v;
+                // dat.data.set([v, v, v, 256], i);
+                // mode[v] = (mode[v] || 0) + 1;
+                // sum += v;
                 // console.debug(v);
-                // debugger;
             }
         }
         // console.debug(sum / (w * h));
         // console.debug(mode);
-        // debugger;
         ctx.putImageData(dat, 0, 0);
     }
 }
@@ -155,6 +160,135 @@ class Water extends Array3Drawable {
     // Needs to store:
         // Volume (of water in this wixel)
         // 2D Velocity (of water in this wixel)
+    constructor() {
+        super(3);
+    }
+
+    tick () {
+        var orig = this.array.slice();
+        for (var x = 0; x < this.width; x++)
+            for (var y = 0; y < this.height; y++)
+                this.tickWixel(x, y, orig);
+    }
+
+    tickWixel (x, y, orig) {
+        // ONLY FLOW OUT FROM WIXELS. Should help avoid instability.
+        // Look at all 8 adjacent wixels, and get surplus water in this one vs all others.
+        // Average the surplus and dump that amount into all of them?
+        // Get surplus of this one against all others.
+        // Scale surplus for each to normalize to total surplus?
+        // var adjSum = this.sumAdjacentLevels(x, y, orig);
+        var val = this.getElement(x, y, 0);
+
+        if (!val && this.hasAdjacentWater(x, y, orig))
+            this.drip(x, y);
+
+        // var adjDelta = adjSum - val;
+        // // Is there surplus in this wixel?
+        // if (adjDelta > 0)
+        // {
+        //     // this.push
+        // }
+    }
+
+    sumAdjacentLevels (x, y, array) {
+        var s = 0;
+        if (y > 0)
+        {
+            if (x > 0)
+                s += this.getElement(x - 1, y - 1, 0, array);
+            s += this.getElement(x, y - 1, 0, array);
+            if (x < this.width - 1)
+                s += this.getElement(x + 1, y - 1, 0, array);
+        }
+        if (x > 0)
+            s += this.getElement(x - 1, y, 0, array);
+        if (x < this.width - 1)
+            s += this.getElement(x + 1, y, 0, array);
+        if (y < this.height - 1)
+        {
+            if (x > 0)
+                s += this.getElement(x - 1, y + 1, 0, array);
+            s += this.getElement(x, y + 1, 0, array);
+            if (x < this.width - 1)
+                s += this.getElement(x + 1, y + 1, 0, array);
+        }
+        return s;
+    }
+
+    hasAdjacentWater (x, y, array) {
+        if (y > 0)
+        {
+            if (x > 0)
+                if (this.getElement(x - 1, y - 1, 0, array))
+                    return true;
+            if (this.getElement(x, y - 1, 0, array))
+                return true;
+            if (x < this.width - 1)
+                if (this.getElement(x + 1, y - 1, 0, array))
+                    return true;
+        }
+        if (x > 0)
+            if (this.getElement(x - 1, y, 0, array))
+                return true;
+        if (x < this.width - 1)
+            if (this.getElement(x + 1, y, 0, array))
+                return true;
+        if (y < this.height - 1)
+        {
+            if (x > 0)
+                if (this.getElement(x - 1, y + 1, 0, array))
+                    return true;
+            if (this.getElement(x, y + 1, 0, array))
+                return true;
+            if (x < this.width - 1)
+                if (this.getElement(x + 1, y + 1, 0, array))
+                    return true;
+        }
+        return false;
+    }
+
+    drip (x, y, d) {
+        // TODO: Fill a circle with water instead of one pixel.
+        // const dd = Math.PI / d;
+        // for (var yi = 0; yi < r; yi++) {
+        //     var w = Math.round(Math.sin(dd * yi));
+        // }
+        // for (let ri = 0; ri < 1; ri += rd) {
+        //     var w = Math.round(Math.sin(ri));
+        // }
+        this.setElement(x, y, 0, 255);
+    }
+
+    render(canvas, ctx) {
+        const w = canvas.width;
+        const h = canvas.height;
+        // var mode = {};
+        // var sum = 0;
+        // const dat = ctx.createImageData(w, h);
+        ctx.fillStyle = 'rgba(0, 0, 255, 0.6)';
+        for (let x = 0; x < w; x++) {
+            for (let y = 0; y < h; y++)
+            {
+                let v = this.getElement(x, y, 0);
+                // let i = y * w * 4 + x * 4;
+                // debugger;
+                // dat.data.set([0, 0, 255, i % 2 ? 256 : 0], i);
+                // dat.data[i + 0] = 0;
+                // dat.data[i + 1] = 0;
+                // dat.data[i + 2] = 255;
+                // dat.data[i + 3] = i % 2 ? 256 : 0;
+                if (v)
+                    ctx.fillRect(x, y, 1, 1);
+                // mode[v] = (mode[v] || 0) + 1;
+                // sum += v;
+                // console.debug(v);
+            }
+        }
+        // console.debug(sum / (w * h));
+        // console.debug(mode);
+        // ctx.putImageData(dat, 0, 0);
+    }
 }
 
 
@@ -166,9 +300,7 @@ function connectConcreteScaleSliders(concrete, cb) {
 
     function setScales()
     {
-        concrete.scales = [scale1.value, scale2.value, scale3.value];
-        console.log('Regenerating with scales:', concrete.scales);
-        concrete.regenerate();
+        concrete.setScales(scale1.value, scale2.value, scale3.value);
         cb();
     }
 
@@ -189,8 +321,10 @@ const ctx = canvas.getContext('2d');
 var cWidth;
 var cHeight;
 
-var water = new Water();
-var concrete = new Concrete([]);
+// global atm
+window.water = new Water();
+window.concrete = new Concrete([]);
+
 
 function sizeCanvas() {
     // TODO: don't always use maximum resolution.
@@ -201,17 +335,31 @@ function sizeCanvas() {
     concrete.size(cWidth, cHeight);
     concrete.render(canvas, ctx);
 }
-
 sizeCanvas();
 window.addEventListener('resize', sizeCanvas, true);
+
 
 connectConcreteScaleSliders(concrete, () => {
     concrete.render(canvas, ctx);
 });
+
 // concrete.render(canvas, ctx);
 
 console.log(water);
 console.log(concrete);
+
+
+canvas.addEventListener("pointerdown", function(ev)
+{
+    var radius = Math.max(Math.max(ev.width, ev.height), 30);
+    water.drip(ev.offsetX, ev.offsetY, radius);
+});
+
+setInterval(() => {
+    water.tick();
+    concrete.render(canvas, ctx);
+    water.render(canvas, ctx);
+}, 100);
 
 });
 
