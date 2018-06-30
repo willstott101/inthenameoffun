@@ -67,9 +67,17 @@ class Array3Drawable {
         return (array || this.array)[(y * this.width + x) * this.stride + i];
     }
 
+    setElementAt(idx, i, value, array) {
+        (array || this.array)[idx * this.stride + i] = value;
+    }
+
+    getElementAt(idx, i, array) {
+        return (array || this.array)[idx * this.stride + i];
+    }
+
     render(canvas, ctx) { }
 
-    update() { }
+    tick() { }
 }
 
 
@@ -128,6 +136,7 @@ class Concrete extends Array3Drawable {
     }
 
     render(canvas, ctx) {
+        console.debug('Rendering concrete');
         const w = canvas.width;
         const h = canvas.height;
         // var mode = {};
@@ -136,8 +145,9 @@ class Concrete extends Array3Drawable {
         for (let x = 0; x < w; x++) {
             for (let y = 0; y < h; y++)
             {
-                let v = this.getElement(x, y, 0);
-                let i = y * w * 4 + x * 4;
+                let i = y * w + x;
+                let v = this.getElementAt(i, 0);
+                i *= 4;
                 dat.data[i + 0] = v;
                 dat.data[i + 1] = v;
                 dat.data[i + 2] = v;
@@ -165,7 +175,7 @@ class Water extends Array3Drawable {
     }
 
     tick () {
-        var orig = this.array.slice();
+        const orig = this.array.slice();
         for (var x = 0; x < this.width; x++)
             for (var y = 0; y < this.height; y++)
                 this.tickWixel(x, y, orig);
@@ -180,7 +190,8 @@ class Water extends Array3Drawable {
         // var adjSum = this.sumAdjacentLevels(x, y, orig);
         var val = this.getElement(x, y, 0);
 
-        if (!val && this.hasAdjacentWater(x, y, orig))
+        // QDH: Global concrete access 
+        if (!val && concrete.getElement(x, y, 0) < 200 && this.hasAdjacentWater(x, y, orig))
             this.drip(x, y);
 
         // var adjDelta = adjSum - val;
@@ -263,31 +274,21 @@ class Water extends Array3Drawable {
     render(canvas, ctx) {
         const w = canvas.width;
         const h = canvas.height;
-        // var mode = {};
-        // var sum = 0;
-        // const dat = ctx.createImageData(w, h);
-        ctx.fillStyle = 'rgba(0, 0, 255, 0.6)';
-        for (let x = 0; x < w; x++) {
+        const dat = ctx.createImageData(w, h);
+        for (let x = 0; x < w; x++)
+        {
             for (let y = 0; y < h; y++)
             {
-                let v = this.getElement(x, y, 0);
-                // let i = y * w * 4 + x * 4;
-                // debugger;
-                // dat.data.set([0, 0, 255, i % 2 ? 256 : 0], i);
-                // dat.data[i + 0] = 0;
-                // dat.data[i + 1] = 0;
-                // dat.data[i + 2] = 255;
-                // dat.data[i + 3] = i % 2 ? 256 : 0;
-                if (v)
-                    ctx.fillRect(x, y, 1, 1);
-                // mode[v] = (mode[v] || 0) + 1;
-                // sum += v;
-                // console.debug(v);
+                let i = y * w + x;
+                let v = this.getElementAt(i, 0);
+                i *= 4;
+                dat.data[i + 0] = 0;
+                dat.data[i + 1] = 0;
+                dat.data[i + 2] = 255;
+                dat.data[i + 3] = v;
             }
         }
-        // console.debug(sum / (w * h));
-        // console.debug(mode);
-        // ctx.putImageData(dat, 0, 0);
+        ctx.putImageData(dat, 0, 0);
     }
 }
 
@@ -312,53 +313,86 @@ function connectConcreteScaleSliders(concrete, cb) {
 }
 
 
+class Renderer {
+    constructor(canvasId) {
+        this.canvas = document.getElementById(canvasId);
+        this.ctx = this.canvas.getContext('2d');
+        this.drawables = [];
+    }
+
+    sizeToWindow() {
+        // TODO: don't always use maximum resolution.
+        // Perhaps reduce the resolution if performance is bad..?
+        const w = this.canvas.width = window.innerWidth;
+        const h = this.canvas.height = window.innerHeight;
+
+        const ds = this.drawables;
+        for (var i = 0; i < ds.length; i++)
+            ds[i].size(w, h);
+    }
+
+    render(drawables) {
+        if (drawables === undefined)
+            drawables = this.drawables;
+
+        for (var i = 0; i < drawables.length; i++)
+            drawables[i].render(this.canvas, this.ctx);
+    }
+
+    tick() {
+        const ds = this.drawables;
+        for (var i = 0; i < ds.length; i++)
+            ds[i].tick();
+    }
+
+    add(drawable) {
+        const ds = this.drawables;
+        if (!ds.includes(drawable))
+            ds.push(drawable);
+    }
+}
+
+
 ready(function ()
 {
-const doc = document;
-const body = doc.body;
-const canvas = doc.getElementById('main-canvas');
-const ctx = canvas.getContext('2d');
-var cWidth;
-var cHeight;
-
-// global atm
+// global for easy debugging
 window.water = new Water();
 window.concrete = new Concrete([]);
 
+console.log(water);
+console.log(concrete);
+
+const waterRenderer = new Renderer('top-canvas');
+const concreteRenderer = new Renderer('bg-canvas');
+
+waterRenderer.add(water);
+concreteRenderer.add(concrete);
+
+
 
 function sizeCanvas() {
-    // TODO: don't always use maximum resolution.
-    // Perhaps reduce the resolution if performance is bad..?
-    cWidth = canvas.width = window.innerWidth;
-    cHeight = canvas.height = window.innerHeight;
-    water.size(cWidth, cHeight);
-    concrete.size(cWidth, cHeight);
-    concrete.render(canvas, ctx);
+    waterRenderer.sizeToWindow();
+    concreteRenderer.sizeToWindow();
+
+    concreteRenderer.render();
 }
 sizeCanvas();
 window.addEventListener('resize', sizeCanvas, true);
 
 
 connectConcreteScaleSliders(concrete, () => {
-    concrete.render(canvas, ctx);
+    concreteRenderer.render([concrete]);
 });
 
-// concrete.render(canvas, ctx);
-
-console.log(water);
-console.log(concrete);
-
-
-canvas.addEventListener("pointerdown", function(ev)
+waterRenderer.canvas.addEventListener("pointerdown", function(ev)
 {
     var radius = Math.max(Math.max(ev.width, ev.height), 30);
     water.drip(ev.offsetX, ev.offsetY, radius);
 });
 
 setInterval(() => {
-    water.tick();
-    concrete.render(canvas, ctx);
-    water.render(canvas, ctx);
+    waterRenderer.tick();
+    waterRenderer.render();
 }, 100);
 
 });
