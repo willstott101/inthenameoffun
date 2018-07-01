@@ -139,8 +139,6 @@ class Concrete extends Array3Drawable {
         console.debug('Rendering concrete');
         const w = canvas.width;
         const h = canvas.height;
-        // var mode = {};
-        // var sum = 0;
         const dat = ctx.createImageData(w, h);
         for (let x = 0; x < w; x++) {
             for (let y = 0; y < h; y++)
@@ -152,18 +150,47 @@ class Concrete extends Array3Drawable {
                 dat.data[i + 1] = v;
                 dat.data[i + 2] = v;
                 dat.data[i + 3] = 256;
-                // dat.data.set([v, v, v, 256], i);
-                // mode[v] = (mode[v] || 0) + 1;
-                // sum += v;
-                // console.debug(v);
             }
         }
-        // console.debug(sum / (w * h));
-        // console.debug(mode);
         ctx.putImageData(dat, 0, 0);
     }
 }
 
+class Emitter {
+    constructor(x, y, radius, flowRate) {
+        this.x = x;
+        this.y = y;
+        this.radius = radius || 1;
+        this.flowRate = flowRate || 128;
+    }
+
+    flow(water) {
+        const r = this.radius;
+        const x = this.x;
+        const y = this.y;
+        for (let xi = -r; xi <= r; xi++)
+        {
+            let wx = x + xi;
+            if (wx < 0) continue;
+            if (wx >= water.width) break;
+
+            let yr = Math.round(Math.cos(Math.asin(xi / r)) * r);
+
+            for (let yi = -yr; yi <= yr; yi++)
+            {
+                let wy = y + yi;
+                if (wy < 0) continue;
+                if (wy >= water.height) break;
+
+                this.flowWixel(water, wx, wy);
+            }
+        }
+    }
+
+    flowWixel(water, x, y) {
+        water.setElement(x, y, 0, 255);
+    }
+}
 
 class Water extends Array3Drawable {
     // 2D array of wixels (water pixels)
@@ -172,6 +199,14 @@ class Water extends Array3Drawable {
         // 2D Velocity (of water in this wixel)
     constructor() {
         super(3);
+
+        this.emitters = {};
+    }
+
+    addEmitter(x, y, radius) {
+        // TODO: Keep the emitter around.
+        const e = new Emitter(x, y, radius);
+        e.flow(this);
     }
 
     tick () {
@@ -350,8 +385,8 @@ class Renderer {
             ds.push(drawable);
     }
 
-    scaleCoord(x, y) {
-        return [Math.round(x * this.renderScale), Math.round(y * this.renderScale)];
+    scaleVals(...args) {
+        return args.map(a => Math.round(a * this.renderScale));
     }
 }
 
@@ -365,8 +400,10 @@ window.concrete = new Concrete([]);
 console.log(water);
 console.log(concrete);
 
-const waterRenderer = new Renderer('top-canvas', 0.5);
-const concreteRenderer = new Renderer('bg-canvas', 0.5);
+const RENDER_SCALE = 0.5;
+
+const waterRenderer = new Renderer('top-canvas', RENDER_SCALE);
+const concreteRenderer = new Renderer('bg-canvas', RENDER_SCALE);
 
 waterRenderer.add(water);
 concreteRenderer.add(concrete);
@@ -389,10 +426,11 @@ connectConcreteScaleSliders(concrete, () => {
 
 waterRenderer.canvas.addEventListener("pointerdown", function(ev)
 {
-    var radius = Math.max(Math.max(ev.width, ev.height), 30);
-    const [x, y] = waterRenderer.scaleCoord(ev.offsetX, ev.offsetY);
-    console.log("Click at: ", ev.offsetX, ev.offsetY, "transformed to", x, y);
-    water.drip(x, y, radius);
+    let r = Math.max(Math.max(ev.width, ev.height), 15);
+    const [x, y, radius] = waterRenderer.scaleVals(ev.offsetX, ev.offsetY, r);
+    // console.log("Click at: ", ev.offsetX, ev.offsetY, "transformed to", x, y);
+    water.addEmitter(x, y, radius);
+    // water.drip(x, y, radius);`
 });
 
 
