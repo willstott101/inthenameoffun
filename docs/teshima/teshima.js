@@ -164,6 +164,12 @@ class Emitter {
         this.flowRate = flowRate || 128;
     }
 
+    update(x, y, radius) {
+        this.x = x;
+        this.y = y;
+        this.radius = radius;
+    }
+
     flow(water) {
         const r = this.radius;
         const x = this.x;
@@ -203,13 +209,28 @@ class Water extends Array3Drawable {
         this.emitters = {};
     }
 
-    addEmitter(x, y, radius) {
-        // TODO: Keep the emitter around.
+    addEmitter(pId, x, y, radius) {
         const e = new Emitter(x, y, radius);
-        e.flow(this);
+        this.emitters[pId] = e;
+    }
+
+    updateEmitter(pId, x, y, radius) {
+        if (this.emitters.hasOwnProperty(pId))
+            this.emitters[pId].update(x, y, radius);
+    }
+
+    removeEmitter(pId) {
+        if (this.emitters.hasOwnProperty(pId))
+            delete this.emitters[pId];
     }
 
     tick () {
+        const ems = this.emitters;
+        for (let pId in ems)
+            if (ems.hasOwnProperty(pId))
+                ems[pId].flow(this);
+        // console.log('emitters', ...Object.keys(ems));
+
         const orig = this.array.slice();
         for (var x = 0; x < this.width; x++)
             for (var y = 0; y < this.height; y++)
@@ -426,12 +447,23 @@ connectConcreteScaleSliders(concrete, () => {
 
 waterRenderer.canvas.addEventListener("pointerdown", function(ev)
 {
+    let r = Math.max(Math.max(ev.width, ev.height) / 2, 4);
+    const [x, y, radius] = waterRenderer.scaleVals(ev.offsetX, ev.offsetY, r);
+    water.addEmitter(ev.pointerId, x, y, radius);
+});
+
+waterRenderer.canvas.addEventListener("pointermove", function(ev)
+{
+    if (ev.pressure === 0)
+        return;
     let r = Math.max(Math.max(ev.width, ev.height), 15);
     const [x, y, radius] = waterRenderer.scaleVals(ev.offsetX, ev.offsetY, r);
-    // console.log("Click at: ", ev.offsetX, ev.offsetY, "transformed to", x, y);
-    water.addEmitter(x, y, radius);
-    // water.drip(x, y, radius);`
+    water.updateEmitter(ev.pointerId, x, y, radius);
 });
+
+function onup (ev) { water.removeEmitter(ev.pointerId); }
+document.addEventListener("pointerup", onup);
+document.addEventListener("pointercancel", onup);
 
 
 var start;
