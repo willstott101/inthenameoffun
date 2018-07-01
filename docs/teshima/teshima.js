@@ -314,17 +314,16 @@ function connectConcreteScaleSliders(concrete, cb) {
 
 
 class Renderer {
-    constructor(canvasId) {
+    constructor(canvasId, renderScale) {
         this.canvas = document.getElementById(canvasId);
         this.ctx = this.canvas.getContext('2d');
         this.drawables = [];
+        this.renderScale = renderScale || 1;
     }
 
     sizeToWindow() {
-        // TODO: don't always use maximum resolution.
-        // Perhaps reduce the resolution if performance is bad..?
-        const w = this.canvas.width = window.innerWidth;
-        const h = this.canvas.height = window.innerHeight;
+        const w = this.canvas.width = Math.round(window.innerWidth * this.renderScale);
+        const h = this.canvas.height = Math.round(window.innerHeight * this.renderScale);
 
         const ds = this.drawables;
         for (var i = 0; i < ds.length; i++)
@@ -350,6 +349,10 @@ class Renderer {
         if (!ds.includes(drawable))
             ds.push(drawable);
     }
+
+    scaleCoord(x, y) {
+        return [Math.round(x * this.renderScale), Math.round(y * this.renderScale)];
+    }
 }
 
 
@@ -362,8 +365,8 @@ window.concrete = new Concrete([]);
 console.log(water);
 console.log(concrete);
 
-const waterRenderer = new Renderer('top-canvas');
-const concreteRenderer = new Renderer('bg-canvas');
+const waterRenderer = new Renderer('top-canvas', 0.5);
+const concreteRenderer = new Renderer('bg-canvas', 0.5);
 
 waterRenderer.add(water);
 concreteRenderer.add(concrete);
@@ -387,13 +390,24 @@ connectConcreteScaleSliders(concrete, () => {
 waterRenderer.canvas.addEventListener("pointerdown", function(ev)
 {
     var radius = Math.max(Math.max(ev.width, ev.height), 30);
-    water.drip(ev.offsetX, ev.offsetY, radius);
+    const [x, y] = waterRenderer.scaleCoord(ev.offsetX, ev.offsetY);
+    console.log("Click at: ", ev.offsetX, ev.offsetY, "transformed to", x, y);
+    water.drip(x, y, radius);
 });
 
-setInterval(() => {
-    waterRenderer.tick();
+
+var start;
+function step(timestamp) {
+    if (!start)
+        start = timestamp;
+    var progress = timestamp - start;
+  
+    waterRenderer.tick(timestamp);
     waterRenderer.render();
-}, 100);
+
+    window.requestAnimationFrame(step);
+}
+window.requestAnimationFrame(step);
 
 });
 
