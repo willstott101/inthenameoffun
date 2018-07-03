@@ -19,14 +19,13 @@ class Array3Drawable {
         if (this.height === height && this.width === width)
             return; // No Change.
 
-        var array; // TODO: Don't always cut off the underlying buffer?
-        // Perhaps keep at maximum seen dimensions?
+        var array;
 
         const rects = [];
 
         if (this.array) {
             if (this.width !== width) {
-                array = new Uint8Array(width * height * this.stride);
+                array = new Uint8ClampedArray(width * height * this.stride);
                 let cropRowLen = Math.min(this.width, width) * this.stride;
                 let srcRowLen = this.width * this.stride;
                 let dstRowLen = width * this.stride;
@@ -35,12 +34,12 @@ class Array3Drawable {
                     array.set(this.array.subarray(i, i + cropRowLen), dstRowLen * y);
                 }
             } else if (height > this.height) {
-                array = new Uint8Array(width * height * this.stride);
+                array = new Uint8ClampedArray(width * height * this.stride);
                 array.set(this.array); // Grown
             } else
                 array = this.array.slice(0, width * height * this.stride); // Shrunk
         } else
-            array = new Uint8Array(width * height * this.stride);
+            array = new Uint8ClampedArray(width * height * this.stride);
 
         if (this.height < height)
             rects.push([0, this.height, width, height - this.height]);
@@ -63,6 +62,13 @@ class Array3Drawable {
         (array || this.array)[(y * this.width + x) * this.stride + i] = value;
     }
 
+    incrElement(x, y, i, value, array) {
+        const arr = array || this.array;
+        const idx = (y * this.width + x) * this.stride + i;
+        const orig = arr[idx];
+        return (arr[idx] += value) - orig;
+    }
+
     getElement(x, y, i, array) {
         return (array || this.array)[(y * this.width + x) * this.stride + i];
     }
@@ -77,7 +83,7 @@ class Array3Drawable {
 
     render(canvas, ctx) { }
 
-    tick() { }
+    tick(timeDelta) { }
 }
 
 
@@ -87,7 +93,7 @@ class Concrete extends Array3Drawable {
         // Height (of concrete)
         // Wetness (willingness for water to travel here)
     constructor(scales) {
-        super(2);
+        super(3);
 
         this.simplex = new SimplexNoise();
         this.scales = scales;
@@ -130,9 +136,64 @@ class Concrete extends Array3Drawable {
                 else
                     tv = tv / 3;
 
+                // TODO: Alter for Clamped Array
                 this.setElement(xi, yi, 0, Math.floor(tv * 128 + 128));
             }
         }
+
+        this.bakeVelocities(x, y, x2, y2);
+    }
+
+    bakeVelocities(x, y, x2, y2) {
+        const diagonal = (1 / Math.sqrt(1 + 1)) * 0.5;
+
+        for (let yi = y; yi < y2; yi++) {
+            for (let xi = x; xi < x2; xi++)
+            {
+                var vx = 0;
+                var vy = 0;
+
+                if (xi < this.width - 1)
+                    vx += 255 - this.getElement(xi + 1, yi,     0);
+
+                if (xi > 0)
+                    vx -= 255 - this.getElement(xi - 1, yi,     0);
+
+                if (yi < this.width - 1)
+                    vy += 255 - this.getElement(yi,     yi + 1, 0);
+
+                if (yi > 0)
+                    vy -= 255 - this.getElement(yi,     yi - 1, 0);
+
+                if (xi < this.width - 1 && yi < this.height - 1)
+                {
+                    let tr = (255 - this.getElement(xi + 1, yi + 1, 0)) * diagonal;
+                    vx += tr;
+                    vy += tr;
+                }
+                if (xi < this.width - 1 && yi > 0)
+                {
+                    let br = (255 - this.getElement(xi + 1, yi - 1, 0)) * diagonal;
+                    vx += br;
+                    vy -= br;
+                }
+                if (xi > 0 && yi < this.height - 1)
+                {
+                    let tl = (255 - this.getElement(xi - 1, yi + 1, 0)) * diagonal;
+                    vx -= tl;
+                    vy += tl;
+                }
+                if (xi > 0 && yi > 0) {
+                    let bl = (255 - this.getElement(xi - 1, yi - 1, 0)) * diagonal;
+                    vx -= bl;
+                    vy -= bl;
+                }
+
+                this.setElement(xi, yi, 1, vx);
+                this.setElement(xi, yi, 2, vy);
+            }
+        }
+
     }
 
     render(canvas, ctx) {
@@ -170,10 +231,11 @@ class Emitter {
         this.radius = radius;
     }
 
-    flow(water) {
+    flow(water, timeDelta) {
         const r = this.radius;
         const x = this.x;
         const y = this.y;
+        const d = timeDelta * this.flowRate;
         for (let xi = -r; xi <= r; xi++)
         {
             let wx = x + xi;
@@ -188,13 +250,13 @@ class Emitter {
                 if (wy < 0) continue;
                 if (wy >= water.height) break;
 
-                this.flowWixel(water, wx, wy);
+                this.flowWixel(water, wx, wy, d);
             }
         }
     }
 
-    flowWixel(water, x, y) {
-        water.setElement(x, y, 0, 255);
+    flowWixel(water, x, y, d) {
+        water.incrElement(x, y, 0, d);
     }
 }
 
@@ -224,41 +286,81 @@ class Water extends Array3Drawable {
             delete this.emitters[pId];
     }
 
-    tick () {
+    tick(timeDelta) {
         const ems = this.emitters;
         for (let pId in ems)
             if (ems.hasOwnProperty(pId))
-                ems[pId].flow(this);
-        // console.log('emitters', ...Object.keys(ems));
+                ems[pId].flow(this, timeDelta);
 
         const orig = this.array.slice();
         for (var x = 0; x < this.width; x++)
             for (var y = 0; y < this.height; y++)
-                this.tickWixel(x, y, orig);
+                this.tickWixel(x, y, orig, timeDelta);
     }
 
-    tickWixel (x, y, orig) {
+    tickWixel(x, y, orig, timeDelta) {
         // ONLY FLOW OUT FROM WIXELS. Should help avoid instability.
-        // Look at all 8 adjacent wixels, and get surplus water in this one vs all others.
-        // Average the surplus and dump that amount into all of them?
-        // Get surplus of this one against all others.
-        // Scale surplus for each to normalize to total surplus?
-        // var adjSum = this.sumAdjacentLevels(x, y, orig);
-        var val = this.getElement(x, y, 0);
 
-        // QDH: Global concrete access 
-        if (!val && concrete.getElement(x, y, 0) < 200 && this.hasAdjacentWater(x, y, orig))
-            this.drip(x, y);
+        // Algo Thoughts 1
+            // Look at all 8 adjacent wixels, and get surplus water in this one vs all others.
+            // Average the surplus and dump that amount into all of them?
+            // Get surplus of this one against all others.
+            // Scale surplus for each to normalize to total surplus?
+            // var adjSum = this.sumAdjacentLevels(x, y, orig);
 
+        // var val = this.getElement(x, y, 0);
         // var adjDelta = adjSum - val;
         // // Is there surplus in this wixel?
         // if (adjDelta > 0)
         // {
         //     // this.push
         // }
+
+        // "Game of Life" - inspired algo
+            // Empty wixels on low-ish areas of concrete become full if there's any nearby water.
+        var val = this.getElement(x, y, 0, orig);
+        var max = this.maxAdjacentLevel(x, y, orig);
+        if (max > val)
+        {
+            // Limit to concrete "height"
+            // max = Math.min(concrete.getElement(x, y, 0), max);
+            let conc = concrete.getElement(x, y, 0);
+            if (max > conc)
+                this.setElement(x, y, 0, max);
+            // else
+            //     this.setElement(x, y, 0, conc);
+        }
+
+        // Concrete Velocity Algo
+            // Water flows out of wixels at the rate pre-caclucated in Concrete.bakeVelocities
+        // var val = this.getElement(x, y, 0, orig);
+        // if (val)
+        // {
+        //     var vx = concrete.getElement(x, y, 1) * timeDelta;
+        //     if (vx > 0)
+        //     {
+        //         if (x < this.width - 1)
+        //             vx = this.incrElement(x + 1, y, 0, vx);
+        //     } else if (x > 0)
+        //         vx = this.incrElement(x - 1, y, 0, vx);
+        //     else
+        //         vx = 0;
+
+        //     var vy = concrete.getElement(x, y, 2) * timeDelta;
+        //     if (vy > 0)
+        //     {
+        //         if (y < this.height - 1)
+        //             vy = this.incrElement(x, y + 1, 0, vy);
+        //     } else if (y > 0)
+        //         vy = this.incrElement(x, y - 1, 0, vy);
+        //     else
+        //         vy = 0;
+
+        //     this.incrElement(x, y, 0, - vx - vy);
+        // }
     }
 
-    sumAdjacentLevels (x, y, array) {
+    sumAdjacentLevels(x, y, array) {
         var s = 0;
         if (y > 0)
         {
@@ -283,7 +385,7 @@ class Water extends Array3Drawable {
         return s;
     }
 
-    hasAdjacentWater (x, y, array) {
+    hasAdjacentWater(x, y, array) {
         if (y > 0)
         {
             if (x > 0)
@@ -315,16 +417,29 @@ class Water extends Array3Drawable {
         return false;
     }
 
-    drip (x, y, d) {
-        // TODO: Fill a circle with water instead of one pixel.
-        // const dd = Math.PI / d;
-        // for (var yi = 0; yi < r; yi++) {
-        //     var w = Math.round(Math.sin(dd * yi));
-        // }
-        // for (let ri = 0; ri < 1; ri += rd) {
-        //     var w = Math.round(Math.sin(ri));
-        // }
-        this.setElement(x, y, 0, 255);
+    maxAdjacentLevel(x, y, array) {
+        var s = 0;
+        if (y > 0)
+        {
+            if (x > 0)
+                s = Math.max(this.getElement(x - 1, y - 1, 0, array), s);
+            s = Math.max(this.getElement(x, y - 1, 0, array), s);
+            if (x < this.width - 1)
+                s = Math.max(this.getElement(x + 1, y - 1, 0, array), s);
+        }
+        if (x > 0)
+            s = Math.max(this.getElement(x - 1, y, 0, array), s);
+        if (x < this.width - 1)
+            s = Math.max(this.getElement(x + 1, y, 0, array), s);
+        if (y < this.height - 1)
+        {
+            if (x > 0)
+                s = Math.max(this.getElement(x - 1, y + 1, 0, array), s);
+            s = Math.max(this.getElement(x, y + 1, 0, array), s);
+            if (x < this.width - 1)
+                s = Math.max(this.getElement(x + 1, y + 1, 0, array), s);
+        }
+        return s;
     }
 
     render(canvas, ctx) {
@@ -394,10 +509,10 @@ class Renderer {
             drawables[i].render(this.canvas, this.ctx);
     }
 
-    tick() {
+    tick(timeDelta) {
         const ds = this.drawables;
         for (var i = 0; i < ds.length; i++)
-            ds[i].tick();
+            ds[i].tick(timeDelta);
     }
 
     add(drawable) {
@@ -466,13 +581,16 @@ document.addEventListener("pointerup", onup);
 document.addEventListener("pointercancel", onup);
 
 
-var start;
+var startTime;
+var lastTime;
 function step(timestamp) {
-    if (!start)
-        start = timestamp;
-    var progress = timestamp - start;
-  
-    waterRenderer.tick(timestamp);
+    if (!startTime)
+        startTime = lastTime = timestamp;
+    var progress = timestamp - startTime;
+    var deltaTime = timestamp - lastTime;
+    lastTime = timestamp;
+
+    waterRenderer.tick(deltaTime / 1000);
     waterRenderer.render();
 
     window.requestAnimationFrame(step);
