@@ -84,6 +84,29 @@ class Array3Drawable {
     render(canvas, ctx) { }
 
     tick(timeDelta) { }
+
+    stats(element) {
+        var sum = 0;
+        var min = 256;
+        var max = -1;
+        const w = this.width;
+        const h = this.height;
+        const count = w * h;
+        const elem = element || 0;
+        for (let i = 0; i < count; i++) {
+            let v = this.getElementAt(i, elem);
+            sum += v;
+            if (v > max) max = v;
+            if (v < min) min = v;
+        }
+        return {
+            mean: sum / (w * h),
+            min: min,
+            max: max,
+            // sum: sum,
+            // count: count,
+        };
+    }
 }
 
 
@@ -121,13 +144,13 @@ class Concrete extends Array3Drawable {
         
         for (let yi = y; yi < y2; yi++) {
             for (let xi = x; xi < x2; xi++) {
-                let tv = -1;
+                let tv = 0;
                 for (var i = 0; i < this.scales.length; i++)
                 {
                     let v = this.simplex.noise2D(xi * this.scales[i], yi * this.scales[i]);
                     // tv *= v;
                     // tv = Math.max(tv, v);
-                    tv += v + 1;
+                    tv += v;
                 }
                 if (tv > 3)
                     tv = 1;
@@ -136,12 +159,15 @@ class Concrete extends Array3Drawable {
                 else
                     tv = tv / 3;
 
-                // TODO: Alter for Clamped Array
-                this.setElement(xi, yi, 0, Math.floor(tv * 128 + 128));
+                this.setElement(xi, yi, 0, Math.round((tv * 200) + 128));
             }
         }
 
         this.bakeVelocities(x, y, x2, y2);
+
+        console.debug('Concrete generated - stats:', this.stats(0));
+        console.debug('                - vx stats:', this.stats(1));
+        console.debug('                - vy stats:', this.stats(2));
     }
 
     bakeVelocities(x, y, x2, y2) {
@@ -472,7 +498,7 @@ function connectConcreteScaleSliders(concrete, cb) {
 
     function setScales()
     {
-        concrete.setScales(scale1.value, scale2.value, scale3.value);
+        concrete.setScales(scale1.value / 20, scale2.value / 20, scale3.value / 20);
         cb();
     }
 
