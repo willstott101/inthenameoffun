@@ -445,24 +445,26 @@ class Water extends Array3Drawable {
 
     maxAdjacentLevel(x, y, array) {
         var s = 0;
+        const w2 = this.width - 1;
+        const h2 = this.height - 1;
         if (y > 0)
         {
             if (x > 0)
                 s = Math.max(this.getElement(x - 1, y - 1, 0, array), s);
             s = Math.max(this.getElement(x, y - 1, 0, array), s);
-            if (x < this.width - 1)
+            if (x < w2)
                 s = Math.max(this.getElement(x + 1, y - 1, 0, array), s);
         }
         if (x > 0)
             s = Math.max(this.getElement(x - 1, y, 0, array), s);
-        if (x < this.width - 1)
+        if (x < w2)
             s = Math.max(this.getElement(x + 1, y, 0, array), s);
-        if (y < this.height - 1)
+        if (y < h2)
         {
             if (x > 0)
                 s = Math.max(this.getElement(x - 1, y + 1, 0, array), s);
             s = Math.max(this.getElement(x, y + 1, 0, array), s);
-            if (x < this.width - 1)
+            if (x < w2)
                 s = Math.max(this.getElement(x + 1, y + 1, 0, array), s);
         }
         return s;
@@ -555,73 +557,73 @@ class Renderer {
 
 ready(function ()
 {
-// global for easy debugging
-window.water = new Water();
-window.concrete = new Concrete([]);
+    // global for easy debugging
+    window.water = new Water();
+    window.concrete = new Concrete([]);
 
-console.log(water);
-console.log(concrete);
+    console.log(water);
+    console.log(concrete);
 
-const RENDER_SCALE = 0.5;
+    const RENDER_SCALE = 0.4;
 
-const waterRenderer = new Renderer('top-canvas', RENDER_SCALE);
-const concreteRenderer = new Renderer('bg-canvas', RENDER_SCALE);
+    const waterRenderer = new Renderer('top-canvas', RENDER_SCALE);
+    const concreteRenderer = new Renderer('bg-canvas', RENDER_SCALE);
 
-waterRenderer.add(water);
-concreteRenderer.add(concrete);
-
-
-
-function sizeCanvas() {
-    waterRenderer.sizeToWindow();
-    concreteRenderer.sizeToWindow();
-
-    concreteRenderer.render();
-}
-sizeCanvas();
-window.addEventListener('resize', sizeCanvas, true);
+    waterRenderer.add(water);
+    concreteRenderer.add(concrete);
 
 
-connectConcreteScaleSliders(concrete, () => {
-    concreteRenderer.render([concrete]);
-});
 
-waterRenderer.canvas.addEventListener("pointerdown", function(ev)
-{
-    let r = Math.max(Math.max(ev.width, ev.height) / 2, 4);
-    const [x, y, radius] = waterRenderer.scaleVals(ev.offsetX, ev.offsetY, r);
-    water.addEmitter(ev.pointerId, x, y, radius);
-});
+    function sizeCanvas() {
+        waterRenderer.sizeToWindow();
+        concreteRenderer.sizeToWindow();
 
-waterRenderer.canvas.addEventListener("pointermove", function(ev)
-{
-    if (ev.pressure === 0)
-        return;
-    let r = Math.max(Math.max(ev.width, ev.height), 15);
-    const [x, y, radius] = waterRenderer.scaleVals(ev.offsetX, ev.offsetY, r);
-    water.updateEmitter(ev.pointerId, x, y, radius);
-});
-
-function onup (ev) { water.removeEmitter(ev.pointerId); }
-document.addEventListener("pointerup", onup);
-document.addEventListener("pointercancel", onup);
+        concreteRenderer.render();
+    }
+    sizeCanvas();
+    window.addEventListener('resize', sizeCanvas, true);
 
 
-var startTime;
-var lastTime;
-function step(timestamp) {
-    if (!startTime)
-        startTime = lastTime = timestamp;
-    var progress = timestamp - startTime;
-    var deltaTime = timestamp - lastTime;
-    lastTime = timestamp;
+    connectConcreteScaleSliders(concrete, () => {
+        concreteRenderer.render([concrete]);
+    });
 
-    waterRenderer.tick(deltaTime / 1000);
-    waterRenderer.render();
+    waterRenderer.canvas.addEventListener("pointerdown", function(ev)
+    {
+        let r = Math.max(Math.max(ev.width, ev.height) / 2, 4);
+        const [x, y, radius] = waterRenderer.scaleVals(ev.offsetX, ev.offsetY, r);
+        water.addEmitter(ev.pointerId, x, y, radius);
+    });
 
+    waterRenderer.canvas.addEventListener("pointermove", function(ev)
+    {
+        if (ev.pressure === 0)
+            return;
+        let r = Math.max(Math.max(ev.width, ev.height), 15);
+        const [x, y, radius] = waterRenderer.scaleVals(ev.offsetX, ev.offsetY, r);
+        water.updateEmitter(ev.pointerId, x, y, radius);
+    });
+
+    function onup (ev) { water.removeEmitter(ev.pointerId); }
+    document.addEventListener("pointerup", onup);
+    document.addEventListener("pointercancel", onup);
+
+
+    var startTime;
+    var lastTime;
+    function step(timestamp) {
+        if (!startTime)
+            startTime = lastTime = timestamp;
+        var progress = timestamp - startTime;
+        var deltaTime = timestamp - lastTime;
+        lastTime = timestamp;
+
+        waterRenderer.tick(deltaTime / 1000);
+        waterRenderer.render();
+
+        window.requestAnimationFrame(step);
+    }
     window.requestAnimationFrame(step);
-}
-window.requestAnimationFrame(step);
 
 });
 
