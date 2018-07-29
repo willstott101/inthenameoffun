@@ -9,7 +9,7 @@ function ready(fn) {
 }
 
 
-class Array3Drawable {
+class Matrix3D {
     constructor(stride) {
         this.stride = stride; // Cannot change stride atm.
         this.width = this.height = 0;
@@ -108,9 +108,23 @@ class Array3Drawable {
         };
     }
 }
+Matrix3D.ADJ_RIGHT = 0;
+Matrix3D.ADJ_BOTT_RIGHT = 1;
+Matrix3D.ADJ_BOTT = 2;
+Matrix3D.ADJ_BOTT_LEFT = 3;
+Matrix3D.ADJ_LEFT = 4;
+Matrix3D.ADJ_TOP_LEFT = 5;
+Matrix3D.ADJ_TOP = 6;
+Matrix3D.ADJ_TOP_RIGHT = 7;
+Matrix3D.ADJ_DIFF_X = {
+    0: 1, 1: 1, 2: 0, 3: -1, 4: -1, 5: -1, 6: 0, 7: 1,
+};
+Matrix3D.ADJ_DIFF_Y = {
+    0: 0, 1: -1, 2: -1, 3: -1, 4: 0, 5: 1, 6: 1, 7: 1,
+};
 
 
-class Concrete extends Array3Drawable {
+class Concrete extends Matrix3D {
     // 2D array of cixels (concrete pixels)
     // Needs ot store:
         // Height (of concrete)
@@ -215,8 +229,8 @@ class Concrete extends Array3Drawable {
                     vy -= bl;
                 }
 
-                this.setElement(xi, yi, 1, vx);
-                this.setElement(xi, yi, 2, vy);
+                this.setElement(xi, yi, 1, (vx * 0.5) + 128);
+                this.setElement(xi, yi, 2, (vy * 0.5) + 128);
             }
         }
 
@@ -286,7 +300,7 @@ class Emitter {
     }
 }
 
-class Water extends Array3Drawable {
+class Water extends Matrix3D {
     // 2D array of wixels (water pixels)
     // Needs to store:
         // Volume (of water in this wixel)
@@ -332,7 +346,7 @@ class Water extends Array3Drawable {
             // Average the surplus and dump that amount into all of them?
             // Get surplus of this one against all others.
             // Scale surplus for each to normalize to total surplus?
-            // var adjSum = this.sumAdjacentLevels(x, y, orig);
+        // var adjSum = this.sumAdjacentLevels(x, y, orig)[0];
 
         // var val = this.getElement(x, y, 0);
         // var adjDelta = adjSum - val;
@@ -344,25 +358,25 @@ class Water extends Array3Drawable {
 
         // "Game of Life" - inspired algo
             // Empty wixels on low-ish areas of concrete become full if there's any nearby water.
-        var val = this.getElement(x, y, 0, orig);
-        var max = this.maxAdjacentLevel(x, y, orig);
-        if (max > val)
-        {
-            // Limit to concrete "height"
-            // max = Math.min(concrete.getElement(x, y, 0), max);
-            let conc = concrete.getElement(x, y, 0);
-            if (max > conc)
-                this.setElement(x, y, 0, max);
-            // else
-            //     this.setElement(x, y, 0, conc);
-        }
+        // var val = this.getElement(x, y, 0, orig);
+        // var max = this.maxAdjacentLevel(x, y, orig);
+        // if (max > val)
+        // {
+        //     // Limit to concrete "height"
+        //     // max = Math.min(concrete.getElement(x, y, 0), max);
+        //     let conc = concrete.getElement(x, y, 0);
+        //     if (max > conc)
+        //         this.setElement(x, y, 0, max);
+        //     // else
+        //     //     this.setElement(x, y, 0, conc);
+        // }
 
         // Concrete Velocity Algo
             // Water flows out of wixels at the rate pre-caclucated in Concrete.bakeVelocities
         // var val = this.getElement(x, y, 0, orig);
         // if (val)
         // {
-        //     var vx = concrete.getElement(x, y, 1) * timeDelta;
+        //     var vx = (concrete.getElement(x, y, 1) - 128) * timeDelta;
         //     if (vx > 0)
         //     {
         //         if (x < this.width - 1)
@@ -372,7 +386,7 @@ class Water extends Array3Drawable {
         //     else
         //         vx = 0;
 
-        //     var vy = concrete.getElement(x, y, 2) * timeDelta;
+        //     var vy = (concrete.getElement(x, y, 2) - 128) * timeDelta;
         //     if (vy > 0)
         //     {
         //         if (y < this.height - 1)
@@ -384,31 +398,84 @@ class Water extends Array3Drawable {
 
         //     this.incrElement(x, y, 0, - vx - vy);
         // }
+
+        // Fill Lowest Wixel First, till average adjacent height matches
+        // var adjMean;
+        // var v = this.getElement(x, y, 0/*, orig*/);
+        // while((adjMean = this.meanAdjacentLevels(x, y)) < v)
+        // {
+        //     let [min, mx, my] = this.minAdjacentWixel(x, y);
+        //     let delta = adjMean - min;
+        //     if (delta <= 0)
+        //         break;
+        //     v -= delta;
+        //     this.setElement(mx, my, 0, min + delta);
+        // }
+        // this.setElement(x, y, 0, v);
+
+        // Mean With Lowest Wixel
+        var min, mx, my, v = this.getElement(x, y, 0/*, orig*/);
+        while(([min, mx, my] = this.minAdjacentWixel(x, y))[0] < v)
+        {
+            let avg = (v + min) / 2;
+            let v1 = Math.ceil(avg);
+            if (v1 === v)
+                break;
+            v = v1;
+            this.setElement(mx, my, 0, Math.floor(avg));
+        }
+        this.setElement(x, y, 0, v);
     }
 
     sumAdjacentLevels(x, y, array) {
         var s = 0;
+        var cnt = 0;
         if (y > 0)
         {
             if (x > 0)
+            {
                 s += this.getElement(x - 1, y - 1, 0, array);
+                cnt++;
+            }
             s += this.getElement(x, y - 1, 0, array);
+            cnt++;
             if (x < this.width - 1)
+            {
                 s += this.getElement(x + 1, y - 1, 0, array);
+                cnt++;
+            }
         }
         if (x > 0)
+        {
             s += this.getElement(x - 1, y, 0, array);
+            cnt++;
+        }
         if (x < this.width - 1)
+        {
             s += this.getElement(x + 1, y, 0, array);
+            cnt++;
+        }
         if (y < this.height - 1)
         {
             if (x > 0)
+            {
                 s += this.getElement(x - 1, y + 1, 0, array);
+                cnt++;
+            }
             s += this.getElement(x, y + 1, 0, array);
+            cnt++;
             if (x < this.width - 1)
+            {
                 s += this.getElement(x + 1, y + 1, 0, array);
+                cnt++;
+            }
         }
-        return s;
+        return [s, cnt];
+    }
+
+    meanAdjacentLevels(x, y, array) {
+        const [sum, cnt] = this.sumAdjacentLevels(x, y, array);
+        return sum / cnt;
     }
 
     hasAdjacentWater(x, y, array) {
@@ -468,6 +535,76 @@ class Water extends Array3Drawable {
                 s = Math.max(this.getElement(x + 1, y + 1, 0, array), s);
         }
         return s;
+    }
+
+    minAdjacentWixel(x, y, array) {
+        var m = 255;
+        var v;
+        const w2 = this.width - 1;
+        const h2 = this.height - 1;
+        var rx = 0;
+        var ry = 0;
+        if (y > 0)
+        {
+            if (x > 0)
+                if ((v = this.getElement(x - 1, y - 1, 0, array)) < m)
+                {
+                    m = v;
+                    rx = x - 1;
+                    ry = y - 1;
+                }
+            if ((v = this.getElement(x, y - 1, 0, array)) < m)
+            {
+                m = v;
+                rx = x;
+                ry = y - 1;
+            }
+            if (x < w2)
+                if ((v = this.getElement(x + 1, y - 1, 0, array)) < m)
+                {
+                    m = v;
+                    rx = x + 1;
+                    ry = y - 1;
+                }
+        }
+        if (x > 0)
+            if ((v = this.getElement(x - 1, y, 0, array)) < m)
+            {
+                m = v;
+                rx = x - 1;
+                ry = y;
+            }
+        if (x < w2)
+            if ((v = this.getElement(x + 1, y, 0, array)) < m)
+            {
+                m = v;
+                rx = x + 1;
+                ry = y;
+            }
+        if (y < h2)
+        {
+            if (x > 0)
+                if ((v = this.getElement(x - 1, y + 1, 0, array)) < m)
+                {
+                    m = v;
+                    rx = x - 1;
+                    ry = y + 1;
+                }
+            if ((v = this.getElement(x, y + 1, 0, array)) < m)
+            {
+                m = v;
+                rx = x;
+                ry = y + 1;
+            }
+            if (x < w2)
+                if ((v = this.getElement(x + 1, y + 1, 0, array)) < m)
+                {
+                    m = v;
+                    rx = x + 1;
+                    ry = y + 1;
+                }
+        }
+        return [m, rx, ry];
     }
 
     render(canvas, ctx) {
